@@ -106,7 +106,7 @@ void bif_call(u32 fnid, edn_pack_t* pack, const edn_function_t* fn, edn_reg_t* r
   }
 }
 
-edn_vm_error_t edn_interpret_fn(edn_pack_t* pack, edn_function_t* fn) {
+edn_error_t edn_interpret_fn(edn_pack_t* pack, edn_function_t* fn) {
   edn_reg_t regs[16];
   for (size_t i = 0; i < fn->bytecodelen; i++) {
     const edn_op_t op = {
@@ -142,7 +142,7 @@ edn_vm_error_t edn_interpret_fn(edn_pack_t* pack, edn_function_t* fn) {
   }
 }
 
-edn_vm_error_t edn_run_vm(edn_vm_t* vm) {
+edn_error_t edn_run_vm(edn_vm_t* vm) {
   printf("Running vm...\n");
 
   edn_interpret_fn(vm->pack, &vm->pack->functions[vm->pack->entryifuncid]);
@@ -158,6 +158,18 @@ int main(int argc, char** argv) {
     FILE* outfile = fopen("dump.txt", "w");
     dump_pack(isnull(outfile) ? stdout : outfile, &test_pack);
     fclose(outfile);
+    return kErrNone;
+  } else if (argc > 1 && strcmp(argv[1], "--save") == 0) {
+    FILE* outfile = fopen("code.eden", "wb");
+    dump_pack(stdout, &test_pack);
+    edn_error_t err = edn_write_pack(outfile, &test_pack);
+    fclose(outfile);
+    return err;
+  } else if (argc > 1 && strcmp(argv[1], "--read") == 0) {
+    FILE* infile = fopen("code.eden", "rb");
+    edn_pack_t pack = edn_read_pack(infile);
+    dump_pack(stdout, &pack);
+    fclose(infile);
     return kErrNone;
   }
 

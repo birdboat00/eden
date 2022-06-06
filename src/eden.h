@@ -2,10 +2,13 @@
 #define EDEN_H 1
 
 #include <stdint.h>
+#include <stdio.h>
 
 #define EDEN_VERSION "22w22a"
 #define EDEN_BYTECODE_VERSION 0x01
 #define EDEN_BUILD_TIME __TIME__ " on " __DATE__
+
+#define EDEN_PACK_MAGIC "eDeN"
 
 typedef uint8_t bool;
 typedef uint8_t u8;
@@ -69,10 +72,11 @@ typedef struct edn_vm {
   edn_pack_t* pack;
 } edn_vm_t;
 
-typedef enum edn_vm_error {
+typedef enum edn_error {
   kErrNone = 0,
-  kErrInvalidPack
-} edn_vm_error_t;
+  kErrInvalidPack,
+  kErrInvalidFile,
+} edn_error_t;
 
 typedef enum edn_reg_type {
   integer,
@@ -98,6 +102,10 @@ typedef struct edn_process {
 } edn_process_t;
 
 edn_vm_t edn_make_vm(const edn_pack_t* pack, const edn_vm_params_t params);
-edn_vm_error_t edn_run_vm(edn_vm_t* vm);
+edn_error_t edn_run_vm(edn_vm_t* vm);
+
+edn_error_t edn_write_pack(FILE* outfile, const edn_pack_t* pack);
+// edn_error_t edn_load_pack(FILE* infile, edn_pack_t* pack);
+edn_pack_t edn_read_pack(FILE* infile);
 
 #endif

@@ -33,7 +33,7 @@ edn_pack_t create_test_pack() {
   static str strings[] = { "gamma", "beta", "alpha", "\n" };
 
   edn_pack_t pack = {
-    .name = "edn_builtin_test",
+    .name = "edn_bitp",
     .target_version = EDEN_BYTECODE_VERSION,
     .entryifuncid = 0,
     .integers = &ints[0],
