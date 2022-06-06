@@ -1,4 +1,4 @@
-SOURCES = src/main.c
+SOURCES = src/main.c src/builtin_test_pack.c
 OBJ = $(patsubst %.c,%.o, $(SOURCES))
 CC = gcc
 

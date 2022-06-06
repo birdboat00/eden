@@ -1,46 +1,8 @@
 #include <stdio.h>
+#include <string.h>
 
 #include "eden.h"
-
-edn_pack_t create_test_pack() {
-
-  static edn_bytecode_t bytecode[] = {
-    oint, 0, 0,
-    oint, 1, 1,
-    oadd, 2, 0, 1,
-    ostr, 3, 3,
-    obifcall, 2, 0x01, 2,
-    obifcall, 2, 0x01, 3,
-    ostr, 0, 0,
-    obifcall, 2, 0x01, 0,
-    obifcall, 2, 0x01, 3,
-  };
-  static edn_function_t main_func = {
-    .bytecode = &bytecode[0],
-    .bytecodelen = arraylen(edn_bytecode_t, bytecode)
-  };
-
-  static i32 ints[] = { 10, 20, 40 };
-  static f64 floats[] = { -1.2, 1.0, 10.23 };
-  static str strings[] = { "gamma", "beta", "alpha", "\n" };
-
-  edn_pack_t pack = {
-    .name = "edn_builtin_test",
-    .target_version = EDEN_BYTECODE_VERSION,
-    .entryifuncid = 0,
-    .integers = &ints[0],
-    .integerslen = arraylen(i32, ints),
-    .floats = &floats[0],
-    .floatslen = arraylen(f64, floats),
-    .strings = &strings[0],
-    .stringslen = arraylen(str, strings),
-
-    .functions = &main_func,
-    .functionslen = 1
-  };
-
-  return pack;
-}
+#include "builtin_test_pack.h"
 
 const str op_to_str(const edn_opcode_t op) {
   switch (op)
@@ -112,7 +74,7 @@ void dump_pack(FILE* stream, const edn_pack_t* pack) {
     fprintf(stream, "  }\n");
   }
   
-  printf(stream, "--- END pack DUMP ---\n");
+  fprintf(stream, "--- END pack DUMP ---\n");
 }
 
 edn_vm_t edn_make_vm(const edn_pack_t* pack, const edn_vm_params_t params) {
@@ -189,10 +151,15 @@ edn_vm_error_t edn_run_vm(edn_vm_t* vm) {
 }
 
 int main(int argc, char** argv) {
-  printf("eden %s\n", EDEN_VERSION);
+  printf("eden %s built at %s\n", EDEN_VERSION, EDEN_BUILD_TIME);
 
   const edn_pack_t test_pack = create_test_pack();
-  dump_pack(stdout, &test_pack);
+  if(argc > 1 && strcmp(argv[1], "--dump") == 0) {
+    FILE* outfile = fopen("dump.txt", "w");
+    dump_pack(isnull(outfile) ? stdout : outfile, &test_pack);
+    fclose(outfile);
+    return kErrNone;
+  }
 
   edn_vm_t vm = edn_make_vm(&test_pack, (edn_vm_params_t) { .verbose = 1 });
 

@@ -5,6 +5,7 @@
 
 #define EDEN_VERSION "22w22a"
 #define EDEN_BYTECODE_VERSION 0x01
+#define EDEN_BUILD_TIME __TIME__ " on " __DATE__
 
 typedef uint8_t bool;
 typedef uint8_t u8;
@@ -21,6 +22,7 @@ typedef double f64;
 typedef char* str;
 
 #define arraylen(type, array) (sizeof(array) / sizeof(type))
+#define isnull(x) ((x) == NULL)
 
 typedef enum edn_opcode {
   omov,
@@ -86,6 +88,14 @@ typedef struct edn_reg {
   } data;
   edn_reg_type_t type;
 } edn_reg_t;
+
+typedef struct edn_process_ctx {
+  edn_reg_t regs[64];
+} edn_process_ctx_t;
+
+typedef struct edn_process {
+  edn_process_ctx_t ctx;
+} edn_process_t;
 
 edn_vm_t edn_make_vm(const edn_pack_t* pack, const edn_vm_params_t params);
 edn_vm_error_t edn_run_vm(edn_vm_t* vm);
