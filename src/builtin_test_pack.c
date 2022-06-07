@@ -35,7 +35,7 @@ edn_pack_t create_test_pack() {
   edn_pack_t pack = {
     .name = "edn_bitp",
     .target_version = EDEN_BYTECODE_VERSION,
-    .entryifuncid = 0,
+    .entryfuncid = 0,
     .integers = &ints[0],
     .integerslen = arraylen(i32, ints),
     .floats = &floats[0],

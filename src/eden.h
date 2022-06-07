@@ -5,10 +5,11 @@
 #include <stdio.h>
 
 #define EDEN_VERSION "22w22a"
-#define EDEN_BYTECODE_VERSION 0x01
+#define EDEN_BYTECODE_VERSION 0x0001
 #define EDEN_BUILD_TIME __TIME__ " on " __DATE__
 
-#define EDEN_PACK_MAGIC "eDeN"
+#define EDEN_PACK_MAGIC "eDeNPACK"
+#define EDEN_PACK_MAGIC_LEN 8
 
 typedef uint8_t bool;
 typedef uint8_t u8;
@@ -37,6 +38,8 @@ typedef enum edn_opcode {
   ocall, obifcall, oret
 } edn_opcode_t;
 typedef i32 edn_bytecode_t;
+const str edn_opcode_to_str(const edn_opcode_t op);
+u32 edn_op_arity(const edn_opcode_t op, const edn_bytecode_t next);
 
 typedef struct edn_op {
   edn_opcode_t opcode;
@@ -54,8 +57,8 @@ typedef struct edn_function {
 
 typedef struct edn_pack {
   str name;
-  u32 target_version;
-  u32 entryifuncid;
+  u16 target_version;
+  u32 entryfuncid;
 
   DEF_TABLE(i32, integers);
   DEF_TABLE(f64, floats);
@@ -106,7 +109,7 @@ edn_vm_t edn_make_vm(const edn_pack_t* pack, const edn_vm_params_t params);
 edn_error_t edn_run_vm(edn_vm_t* vm);
 
 edn_error_t edn_write_pack(FILE* outfile, const edn_pack_t* pack);
-// edn_error_t edn_load_pack(FILE* infile, edn_pack_t* pack);
-edn_pack_t edn_read_pack(FILE* infile);
+edn_error_t edn_read_pack(FILE* infile, edn_pack_t* out_pack);
+void edn_dump_pack(FILE* outfile, const edn_pack_t* pack);
 
 #endif

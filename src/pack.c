@@ -12,6 +12,7 @@ typedef enum table_kind {
 } table_kind_t;
 
 DEF_WRITE_FOR(u8);
+DEF_WRITE_FOR(u16);
 DEF_WRITE_FOR(u32);
 DEF_WRITE_FOR(i32);
 DEF_WRITE_FOR(usize);
@@ -26,9 +27,9 @@ void write_string(FILE* outfile, const str string) {
 edn_error_t write_header(FILE* outfile, const edn_pack_t* pack) {
   fwrite(EDEN_PACK_MAGIC, sizeof(EDEN_PACK_MAGIC[0]), strlen(EDEN_PACK_MAGIC), outfile);
 
-  write_u32(outfile, pack->target_version);
+  write_u16(outfile, pack->target_version);
   write_string(outfile, pack->name);
-  write_u32(outfile, pack->entryifuncid);
+  write_u32(outfile, pack->entryfuncid);
 
   return kErrNone;
 }
@@ -79,6 +80,7 @@ edn_error_t edn_write_pack(FILE* outfile, const edn_pack_t* pack) {
 }
 
 DEF_READ_FOR(u8);
+DEF_READ_FOR(u16);
 DEF_READ_FOR(u32);
 DEF_READ_FOR(i32);
 DEF_READ_FOR(usize);
@@ -188,33 +190,76 @@ edn_error_t read_functions_table(FILE* file, u32* out_tablelen, edn_function_t**
   return kErrNone;
 }
 
-edn_pack_t edn_read_pack(FILE* infile) {
-
-  edn_pack_t pack = {
-    .target_version = 0,
-    .floatslen = 0,
-    .integerslen = 0,
-    .stringslen = 0,
-    .functionslen = 0,
-    .name = "@no.name@"
-  };
-
-  char magic_buf[5];
-  magic_buf[5] = '\0';
-  fread(&magic_buf[0], sizeof(EDEN_PACK_MAGIC[0]), 4, infile);
+edn_error_t edn_read_pack(FILE* infile, edn_pack_t* out_pack) {
+  char magic_buf[EDEN_PACK_MAGIC_LEN + 1];
+  magic_buf[EDEN_PACK_MAGIC_LEN] = '\0';
+  fread(&magic_buf[0], sizeof(EDEN_PACK_MAGIC[0]), EDEN_PACK_MAGIC_LEN, infile);
   if (strcmp(&magic_buf[0], EDEN_PACK_MAGIC) != 0) {
     printf("file is not a pack file.\n");
-    return pack;
+    return kErrInvalidPack;
   }
 
-  pack.target_version = read_u32(infile);
-  pack.name = read_string(infile);
-  pack.entryifuncid = read_u32(infile);
+  (*out_pack).target_version = read_u16(infile);
+  if (out_pack->target_version != EDEN_BYTECODE_VERSION) {
+    printf("pack target version (%u) is different from eden vm bytecode version (%u).\n", out_pack->target_version, EDEN_BYTECODE_VERSION);
+    return kErrInvalidPack;
+  }
 
-  read_integers_table(infile, &(pack.integerslen), &(pack.integers));
-  read_f64_table(infile, &(pack.floatslen), &(pack.floats));
-  read_strings_table(infile, &(pack.stringslen), &(pack.strings));
-  read_functions_table(infile, &(pack.functionslen), &(pack.functions));
 
-  return pack;
+  (*out_pack).name = read_string(infile);
+  (*out_pack).entryfuncid = read_u32(infile);
+
+  edn_error_t err = read_integers_table(infile, &((*out_pack).integerslen), &((*out_pack).integers));
+  if (err != kErrNone) return err;
+  err = read_f64_table(infile, &((*out_pack).floatslen), &((*out_pack).floats));
+  if (err != kErrNone) return err;
+  err = read_strings_table(infile, &((*out_pack).stringslen), &((*out_pack).strings));
+  if (err != kErrNone) return err;
+  err = read_functions_table(infile, &((*out_pack).functionslen), &((*out_pack).functions));
+  if (err != kErrNone) return err;
+
+  return kErrNone;
+}
+
+// TODO: fix all of this shitcode.
+void edn_dump_pack(FILE* stream, const edn_pack_t* pack) {
+  fprintf(stream, "--- BEGIN pack DUMP ---\n");
+
+  fprintf(stream, "pack\n  name-> %s\n  targetversion-> %i\n  entryfuncid-> %i\n", pack->name, pack->target_version, pack->entryfuncid);
+  
+  fprintf(stream, "tables:\nintegers (count: %i)\n", pack->integerslen);
+  for (size_t i = 0; i < pack->integerslen; i++) {
+    fprintf(stream, "  @%llu -> %i\n", i, pack->integers[i]);
+  }
+
+  fprintf(stream, "floats (count: %i)\n", pack->floatslen);
+  for (size_t i = 0; i < pack->floatslen; i++) {
+    fprintf(stream, "  @%llu -> %f\n", i, pack->floats[i]);
+  }
+
+  fprintf(stream, "strings (count: %i)\n", pack->stringslen);
+  for(size_t i = 0; i < pack->stringslen; i++) {
+    fprintf(stream, "  @%llu -> \"%s\"\n", i, pack->strings[i]);
+  }
+  
+  fprintf(stream, "functions (count: %i)\n", pack->functionslen);
+  for (size_t i = 0; i < pack->functionslen; i++) {
+    const edn_function_t* fn = &pack->functions[i];
+    fprintf(stream, "  @%llu -> (%llu){\n", i, fn->bytecodelen);
+    for(size_t j = 0; j < fn->bytecodelen; j++) {
+      const usize bclen = fn->bytecodelen;
+      const str opcode = edn_opcode_to_str(fn->bytecode[j]);
+      u32 arity = edn_op_arity(fn->bytecode[j], (j + 1 < bclen) ? fn->bytecode[j + 1] : 0);
+
+      fprintf(stream, "    %s(%i) <- ", opcode, arity);
+      for (size_t a = 1; a <= arity; a++) {
+        fprintf(stream, ", %i", (j + a < bclen) ? fn->bytecode[j + a] : 0);
+      }
+      fprintf(stream, "\n");
+      j += arity;
+    }
+    fprintf(stream, "  }\n");
+  }
+  
+  fprintf(stream, "--- END pack DUMP ---\n");
 }

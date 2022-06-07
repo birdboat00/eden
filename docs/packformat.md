@@ -7,11 +7,10 @@ The pack is always saved in the little-endian format.
 String are represented by a 64-bit unsigned integer for their length, followed by their character data.
 
 ## Header
-The header consists of the magic string `eDeN`.
-This is followed by 4 bytes, which make up a 32-bit unsigned integer, that tell us the bytecode version.
+The header consists of the magic string `eDeNPACK`.
+This is followed by 2 bytes, which make up a 16-bit unsigned integer, that tell us the bytecode version.
+After this comes the name of the pack encoded as a [string as described above](#string-representation).
 Next are 4 bytes, which make up a 32-bit unsigned integer, that tells us the ID of the entry point function.
-
-TODO: add pack name to the header
 
 ## Tables
 Next up in the file are the atom tables. They contain the integer, float and string constants used in the pack as well as the functions of the pack.

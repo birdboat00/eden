@@ -4,79 +4,6 @@
 #include "eden.h"
 #include "builtin_test_pack.h"
 
-const str op_to_str(const edn_opcode_t op) {
-  switch (op)
-  {
-  case omov: return "mov";
-  case oint: return "int";
-  case oflt: return "flt";
-  case ostr: return "str";
-  case oadd: return "add";
-  case osub: return "sub";
-  case omul: return "mul";
-  case odiv: return "div";
-  case oneg: return "neg";
-  case ocall: return "call";
-  case obifcall: return "bifcall";
-  case oret: return "ret";
-  default: "unknown-opcode";
-  }
-  // UNREACHABLE
-}
-const u32 op_arity(const edn_opcode_t op, const edn_bytecode_t next) {
-  switch (op) {
-  case oadd: case osub: case omul: case odiv: return 3;
-  case omov: case oint: case oflt: case ostr: case oneg: return 2;
-  case ocall: case obifcall: return next + 1;
-  case oret: return 1;
-  default: return 0;
-  }
-
-  // UNREACHABLE
-}
-
-void dump_pack(FILE* stream, const edn_pack_t* pack) {
-  fprintf(stream, "--- BEGIN pack DUMP ---\n");
-
-  fprintf(stream, "pack\n  name-> %s\n  targetversion-> %i\n  entryfuncid-> %i\n", pack->name, pack->target_version, pack->entryifuncid);
-  
-  fprintf(stream, "tables:\nintegers (count: %i)\n", pack->integerslen);
-  for (size_t i = 0; i < pack->integerslen; i++) {
-    fprintf(stream, "  @%llu -> %i\n", i, pack->integers[i]);
-  }
-
-  fprintf(stream, "floats (count: %i)\n", pack->floatslen);
-  for (size_t i = 0; i < pack->floatslen; i++) {
-    fprintf(stream, "  @%llu -> %f\n", i, pack->floats[i]);
-  }
-
-  fprintf(stream, "strings (count: %i)\n", pack->stringslen);
-  for(size_t i = 0; i < pack->stringslen; i++) {
-    fprintf(stream, "  @%llu -> \"%s\"\n", i, pack->strings[i]);
-  }
-  
-  fprintf(stream, "functions (count: %i)\n", pack->functionslen);
-  for (size_t i = 0; i < pack->functionslen; i++) {
-    const edn_function_t* fn = &pack->functions[i];
-    fprintf(stream, "  @%llu -> (%llu){\n", i, fn->bytecodelen);
-    for(size_t j = 0; j < fn->bytecodelen; j++) {
-      const usize bclen = fn->bytecodelen;
-      const str opcode = op_to_str(fn->bytecode[j]);
-      u32 arity = op_arity(fn->bytecode[j], (j + 1 < bclen) ? fn->bytecode[j + 1] : 0);
-
-      fprintf(stream, "    %s(%i) <- ", opcode, arity);
-      for (size_t a = 1; a <= arity; a++) {
-        fprintf(stream, ", %i", (j + a < bclen) ? fn->bytecode[j + a] : 0);
-      }
-      fprintf(stream, "\n");
-      j += arity;
-    }
-    fprintf(stream, "  }\n");
-  }
-  
-  fprintf(stream, "--- END pack DUMP ---\n");
-}
-
 edn_vm_t edn_make_vm(const edn_pack_t* pack, const edn_vm_params_t params) {
   edn_vm_t vm = {
     .pack = pack,
@@ -138,14 +65,14 @@ edn_error_t edn_interpret_fn(edn_pack_t* pack, edn_function_t* fn) {
         return kErrInvalidPack;
     }
 
-    i = i + op_arity(op.opcode, op.arg1);
+    i = i + edn_op_arity(op.opcode, op.arg1);
   }
 }
 
 edn_error_t edn_run_vm(edn_vm_t* vm) {
   printf("Running vm...\n");
 
-  edn_interpret_fn(vm->pack, &vm->pack->functions[vm->pack->entryifuncid]);
+  edn_interpret_fn(vm->pack, &vm->pack->functions[vm->pack->entryfuncid]);
 
   return kErrNone;
 }
@@ -156,21 +83,22 @@ int main(int argc, char** argv) {
   const edn_pack_t test_pack = create_test_pack();
   if(argc > 1 && strcmp(argv[1], "--dump") == 0) {
     FILE* outfile = fopen("dump.txt", "w");
-    dump_pack(isnull(outfile) ? stdout : outfile, &test_pack);
+    edn_dump_pack(isnull(outfile) ? stdout : outfile, &test_pack);
     fclose(outfile);
     return kErrNone;
   } else if (argc > 1 && strcmp(argv[1], "--save") == 0) {
     FILE* outfile = fopen("code.eden", "wb");
-    dump_pack(stdout, &test_pack);
+    edn_dump_pack(stdout, &test_pack);
     edn_error_t err = edn_write_pack(outfile, &test_pack);
     fclose(outfile);
     return err;
   } else if (argc > 1 && strcmp(argv[1], "--read") == 0) {
     FILE* infile = fopen("code.eden", "rb");
-    edn_pack_t pack = edn_read_pack(infile);
-    dump_pack(stdout, &pack);
+    edn_pack_t pack;
+    edn_error_t err = edn_read_pack(infile, &pack);
+    if (err == kErrNone) edn_dump_pack(stdout, &pack);
     fclose(infile);
-    return kErrNone;
+    return err;
   }
 
   edn_vm_t vm = edn_make_vm(&test_pack, (edn_vm_params_t) { .verbose = 1 });
