@@ -23,7 +23,7 @@ edn_pack_t create_test_pack() {
     opccr(obifcall, 2, 0x01, 3)
   };
   
-  static edn_function_t main_func = {
+  static const edn_function_t main_func = {
     .bytecode = &bytecode[0],
     .bytecodelen = arraylen(edn_bytecode_t, bytecode)
   };

@@ -50,12 +50,12 @@ typedef struct edn_function {
   usize bytecodelen;
 } edn_function_t;
 
-#define DEF_TABLE(type, name) type* name; i32 name##len;
+#define DEF_TABLE(type, name) type* name; u32 name##len;
 
 typedef struct edn_pack {
   str name;
   u32 target_version;
-  i32 entryifuncid;
+  u32 entryifuncid;
 
   DEF_TABLE(i32, integers);
   DEF_TABLE(f64, floats);
@@ -76,6 +76,7 @@ typedef enum edn_error {
   kErrNone = 0,
   kErrInvalidPack,
   kErrInvalidFile,
+  kErrMallocFail,
 } edn_error_t;
 
 typedef enum edn_reg_type {
