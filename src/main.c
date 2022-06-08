@@ -37,7 +37,7 @@ int main(u32 argc, str* argv) {
     return kErrNone;
   }
 
-  const edn_pack_t test_pack = create_test_pack();
+  edn_pack_t test_pack = create_test_pack();
 
   if (has_arg("--dumptestpack", argc, argv)) {
     FILE* file = fopen("dump.txt", "w");
@@ -61,7 +61,16 @@ int main(u32 argc, str* argv) {
     return err;
   }
 
-  edn_vm_t vm = edn_make_vm(&test_pack, (edn_vm_params_t) { .verbose = 1 });
+  edn_vm_t* vm = edn_make_vm(&test_pack, (edn_vm_params_t) { .verbose = 1 });
+  if (isnull(vm)) return kErrMallocFail;
 
-  return edn_run_vm(&vm);
+  edn_error_t err = edn_run_vm(vm);
+  if (err != kErrNone) { 
+    printf("VM ERROR - dumping registers...\n");
+    for (usize i = 0; i < arraylen(edn_reg_t, vm->registers); i++) {
+      printf("r%i = i(%i) f(%d) s(%s)\n", i, vm->registers[i].data.i, vm->registers[i].data.f, vm->registers[i].data.s);
+    }
+  }
+  
+  return err;
 }

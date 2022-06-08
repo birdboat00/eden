@@ -34,12 +34,11 @@ typedef char* str;
 
 typedef enum edn_opcode {
   omov,
-  oint,
-  oflt,
-  ostr,
+  oint, oflt, ostr,
   oadd, osub, omul, odiv,
   oneg,
-  ocall, obifcall, oret
+  ocall, obifcall, oret,
+  opcode_count
 } edn_opcode_t;
 typedef i32 edn_bytecode_t;
 const str edn_opcode_to_str(const edn_opcode_t op);
@@ -57,17 +56,19 @@ typedef struct edn_function {
   usize bytecodelen;
 } edn_function_t;
 
-#define DEF_TABLE(type, name) type* name; u32 name##len;
-
 typedef struct edn_pack {
   str name;
   u16 target_version;
   u32 entryfuncid;
 
-  DEF_TABLE(i32, integers);
-  DEF_TABLE(f64, floats);
-  DEF_TABLE(str, strings);
-  DEF_TABLE(edn_function_t, functions);
+  i32* integers;
+  u32 integerslen;
+  f64* floats;
+  u32 floatslen;
+  str* strings;
+  u32 stringslen;
+  edn_function_t* functions;
+  u32 functionslen;
 } edn_pack_t;
 
 typedef enum edn_reg_type {
@@ -94,12 +95,13 @@ typedef struct edn_callstack_entry {
   usize ip;
 } edn_callstack_entry_t;
 
+#define EDEN_VM_CALLSTACK_SIZE 65536
 typedef struct edn_vm {
   edn_vm_params_t params;
   edn_pack_t* pack;
 
   u16 callstack_top;
-  edn_callstack_entry_t call_stack[65536];
+  edn_callstack_entry_t callstack[EDEN_VM_CALLSTACK_SIZE];
   
   edn_reg_t registers[64];
 } edn_vm_t;
@@ -119,7 +121,7 @@ typedef struct edn_process {
   edn_process_ctx_t ctx;
 } edn_process_t;
 
-edn_vm_t edn_make_vm(const edn_pack_t* pack, const edn_vm_params_t params);
+edn_vm_t* edn_make_vm(edn_pack_t* pack, const edn_vm_params_t params);
 edn_error_t edn_run_vm(edn_vm_t* vm);
 
 edn_error_t edn_write_pack(FILE* outfile, const edn_pack_t* pack);
