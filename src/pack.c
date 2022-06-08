@@ -6,22 +6,69 @@
 
 #define DEF_READ_FOR(T) T read_##T(FILE* f) { T val; fread(&(val), sizeof(T), 1, f); return val; }
 #define DEF_WRITE_FOR(T) void write_##T(FILE* f, const T v) { fwrite(&(v), sizeof(v), 1, f); }
+#define DEF_RW_FOR(T) DEF_WRITE_FOR(T); \
+  	                  DEF_READ_FOR(T);
 
-typedef enum table_kind {
-  kTableInts, kTableFloats, kTableStrings, kTableFuncs
-} table_kind_t;
+DEF_RW_FOR(u8);
+DEF_RW_FOR(u16);
+DEF_RW_FOR(u32);
+DEF_RW_FOR(i32);
+DEF_RW_FOR(usize);
+DEF_RW_FOR(f64);
 
-DEF_WRITE_FOR(u8);
-DEF_WRITE_FOR(u16);
-DEF_WRITE_FOR(u32);
-DEF_WRITE_FOR(i32);
-DEF_WRITE_FOR(usize);
-DEF_WRITE_FOR(f64);
+#define DEF_TABLE_WRITE_PRIM(tablename, tablelenname) edn_error_t write_##tablename##_table(FILE* f, const edn_pack_t* pack) {\
+  if(pack->tablelenname > 0) { \
+    write_u32(f, pack->tablelenname); \
+    fwrite(&(pack->tablename[0]), sizeof(pack->tablename[0]), pack->tablelenname, f); \
+  } \
+  return kErrNone; \
+}
+
+DEF_TABLE_WRITE_PRIM(integers, integerslen);
+DEF_TABLE_WRITE_PRIM(floats, floatslen);
+
+#define DEF_TABLE_READ_PRIM(type, tablename) edn_error_t read_##tablename##_table(FILE* f, u32* out_tablelen, type** out_tabledata) { \
+  assert(out_tablelen != NULL); \
+  assert(out_tabledata != NULL); \
+  assert(f != NULL); \
+  const u32 len = read_u32(f); \
+  type* table = malloc(sizeof(type) * len); \
+  if (table == NULL) { return kErrMallocFail; } \
+  if (fread(&table[0], sizeof(type), len, f) < len) { return kErrInvalidPack; } \
+  *out_tabledata = table; \
+  *out_tablelen = len; \
+  return kErrNone; \
+}
+
+DEF_TABLE_READ_PRIM(i32, integers);
+DEF_TABLE_READ_PRIM(f64, floats);
 
 void write_string(FILE* outfile, const str string) {
   const usize len = strlen(string);
-  fwrite(&len, sizeof(len), 1, outfile);
-  if (len > 0) fwrite(string, sizeof(string[0]), strlen(string), outfile);
+  write_usize(outfile, len);
+  if (len > 0) fwrite(string, sizeof(string[0]), len, outfile);
+}
+
+edn_error_t write_strings_table(FILE* file, const edn_pack_t* pack) {
+  if (pack->stringslen > 0) {
+    write_u32(file, pack->stringslen);
+    for (usize i = 0; i < pack->stringslen; i++) {
+      write_string(file, pack->strings[i]);
+    }
+  }
+  return kErrNone;
+}
+
+edn_error_t write_functions_table(FILE* file, const edn_pack_t* pack) {
+  printf("Writing functions table with length: %u", pack->functionslen);
+  write_u32(file, pack->functionslen);
+  for(usize i = 0; i < pack->functionslen; i++) {
+    write_usize(file, pack->functions[i].bytecodelen);
+    for (usize j = 0; j < pack->functions[i].bytecodelen; j++) {
+      write_i32(file, pack->functions[i].bytecode[j]);
+    }
+  }
+  return kErrNone;
 }
 
 edn_error_t write_header(FILE* outfile, const edn_pack_t* pack) {
@@ -31,114 +78,48 @@ edn_error_t write_header(FILE* outfile, const edn_pack_t* pack) {
   write_string(outfile, pack->name);
   write_u32(outfile, pack->entryfuncid);
 
+  uint8_t tables = 0;
+  if (pack->integerslen > 0) bit_set(tables, 0);
+  if (pack->floatslen > 0) bit_set(tables, 1);
+  if (pack->stringslen > 0) bit_set(tables, 2);
+  if (pack->functionslen > 0) bit_set(tables, 3);
+  write_u8(outfile, tables); 
+
   return kErrNone;
 }
 
-edn_error_t write_table(FILE* outfile, const edn_pack_t* pack, table_kind_t table) {
-  if (table == kTableInts) {
-    write_u32(outfile, pack->integerslen);
-    fwrite(&(pack->integers[0]), sizeof(pack->integers[0]), pack->integerslen, outfile);
-  } else if (table == kTableFloats) {
-    write_u32(outfile, pack->floatslen);
-    fwrite(&(pack->floats[0]), sizeof(pack->floats[0]), pack->floatslen, outfile);
-  } else if (table == kTableStrings) {
-    write_u32(outfile, pack->stringslen);
-    for (usize i = 0; i < pack->stringslen; i++) {
-      write_string(outfile, pack->strings[i]);
-    }
-  } else if (table == kTableFuncs) {
-    write_u32(outfile, pack->functionslen);
-    for(usize i = 0; i < pack->functionslen; i++) {
-      write_usize(outfile, pack->functions[i].bytecodelen);
-      for (usize j = 0; j < pack->functions[i].bytecodelen; j++) {
-        write_i32(outfile, pack->functions[i].bytecode[j]);
-      }
-    }
-  }
-  return kErrNone;
-}
-
-edn_error_t edn_write_pack(FILE* outfile, const edn_pack_t* pack) {
-  if (isnull(outfile)) {
+edn_error_t edn_write_pack(FILE* file, const edn_pack_t* pack) {
+  if (isnull(file)) {
     return kErrInvalidFile;
   }
   
-  edn_error_t err = write_header(outfile, pack);
+  edn_error_t err = write_header(file, pack);
   if (err != kErrNone) { return err; }
 
-  err = write_table(outfile, pack, kTableInts);
+  err = write_integers_table(file, pack);
   if (err != kErrNone) { return err; }
-  err = write_table(outfile, pack, kTableFloats);
-  if (err != kErrNone) { return err; }
-  err = write_table(outfile, pack, kTableStrings);
+  
+  err = write_floats_table(file, pack);
   if (err != kErrNone) { return err; }
 
-  err = write_table(outfile, pack, kTableFuncs);
+  err = write_strings_table(file, pack);
   if (err != kErrNone) { return err; }
+
+  err = write_functions_table(file, pack);
 
   return err;
 }
 
-DEF_READ_FOR(u8);
-DEF_READ_FOR(u16);
-DEF_READ_FOR(u32);
-DEF_READ_FOR(i32);
-DEF_READ_FOR(usize);
-DEF_READ_FOR(f64);
-
 str read_string(FILE* file) {
-  usize len = 0;
-  fread(&len, sizeof(usize), 1, file);
+  const usize len = read_usize(file);
   str string = malloc(sizeof(char) * (len + 1));
   if (string == NULL) {
     printf("failed to allocate string buffer when reading pack string.\n");
-    return NULL;
+    return string;
   }
-  usize readbytes = fread(&string[0], sizeof(char), len, file);
+  fread(&string[0], sizeof(char), len, file);
   string[len] = '\0';
   return string;
-}
-
-edn_error_t read_integers_table(FILE* file, u32* out_tablelen, i32** out_tabledata) {
-  assert(out_tablelen != NULL);
-  assert(out_tabledata != NULL);
-  assert(file != NULL);
-
-  const u32 len = read_u32(file);
-
-  i32* table = malloc(sizeof(i32) * len);
-  if (table == NULL) {
-    return kErrMallocFail;
-  }
-
-  if (fread(&table[0], sizeof(i32), len, file) < len) {
-    return kErrInvalidPack;
-  }
-
-  *out_tabledata = table;
-  *out_tablelen = len;
-  return kErrNone;
-}
-
-edn_error_t read_f64_table(FILE* file, u32* out_tablelen, f64** out_tabledata) {
-  assert(out_tablelen != NULL);
-  assert(out_tabledata != NULL);
-  assert(file != NULL);
-
-  const u32 len = read_u32(file);
-
-  f64* table = malloc(sizeof(f64) * len);
-  if (table == NULL) {
-    return kErrMallocFail;
-  }
-
-  if (fread(&table[0], sizeof(f64), len, file) < len) {
-    return kErrInvalidPack;
-  }
-
-  *out_tabledata = table;
-  *out_tablelen = len;
-  return kErrNone;
 }
 
 edn_error_t read_strings_table(FILE* file, u32* out_tablelen, str** out_tabledata) {
@@ -187,6 +168,7 @@ edn_error_t read_functions_table(FILE* file, u32* out_tablelen, edn_function_t**
 
   *out_tabledata = table;
   *out_tablelen = len;
+
   return kErrNone;
 }
 
@@ -205,18 +187,30 @@ edn_error_t edn_read_pack(FILE* infile, edn_pack_t* out_pack) {
     return kErrInvalidPack;
   }
 
-
   (*out_pack).name = read_string(infile);
   (*out_pack).entryfuncid = read_u32(infile);
 
-  edn_error_t err = read_integers_table(infile, &((*out_pack).integerslen), &((*out_pack).integers));
-  if (err != kErrNone) return err;
-  err = read_f64_table(infile, &((*out_pack).floatslen), &((*out_pack).floats));
-  if (err != kErrNone) return err;
-  err = read_strings_table(infile, &((*out_pack).stringslen), &((*out_pack).strings));
-  if (err != kErrNone) return err;
-  err = read_functions_table(infile, &((*out_pack).functionslen), &((*out_pack).functions));
-  if (err != kErrNone) return err;
+  uint8_t tables = read_u8(infile);
+
+  if (bit_check(tables, 0)) {
+    edn_error_t err = read_integers_table(infile, &((*out_pack).integerslen), &((*out_pack).integers));
+    if (err != kErrNone) return err;
+  }
+
+  if (bit_check(tables, 1)) {
+    edn_error_t err = read_floats_table(infile, &((*out_pack).floatslen), &((*out_pack).floats));
+    if (err != kErrNone) return err;
+  }
+
+  if (bit_check(tables, 2)) {
+    edn_error_t err = read_strings_table(infile, &((*out_pack).stringslen), &((*out_pack).strings));
+    if (err != kErrNone) return err;
+  }
+  
+  if (bit_check(tables, 3)) {
+    edn_error_t err = read_functions_table(infile, &((*out_pack).functionslen), &((*out_pack).functions));
+    if (err != kErrNone) return err;
+  }
 
   return kErrNone;
 }
@@ -243,7 +237,7 @@ void edn_dump_pack(FILE* stream, const edn_pack_t* pack) {
   }
   
   fprintf(stream, "functions (count: %i)\n", pack->functionslen);
-  for (size_t i = 0; i < pack->functionslen; i++) {
+  for (usize i = 0; i < pack->functionslen; i++) {
     const edn_function_t* fn = &pack->functions[i];
     fprintf(stream, "  @%llu -> (%llu){\n", i, fn->bytecodelen);
     for(size_t j = 0; j < fn->bytecodelen; j++) {
@@ -252,8 +246,8 @@ void edn_dump_pack(FILE* stream, const edn_pack_t* pack) {
       u32 arity = edn_op_arity(fn->bytecode[j], (j + 1 < bclen) ? fn->bytecode[j + 1] : 0);
 
       fprintf(stream, "    %s(%i) <- ", opcode, arity);
-      for (size_t a = 1; a <= arity; a++) {
-        fprintf(stream, ", %i", (j + a < bclen) ? fn->bytecode[j + a] : 0);
+      for (usize a = 1; a <= arity; a++) {
+        fprintf(stream, " %i", (j + a < bclen) ? fn->bytecode[j + a] : 0);
       }
       fprintf(stream, "\n");
       j += arity;

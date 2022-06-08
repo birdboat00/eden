@@ -28,6 +28,10 @@ typedef char* str;
 #define arraylen(type, array) (sizeof(array) / sizeof(type))
 #define isnull(x) ((x) == NULL)
 
+#define bit_set(val, idx) (val |= 1UL << idx)
+#define bit_clear(val, idx) (val &= ~(1UL << idx))
+#define bit_check(val, idx) ((val >> idx) & 1UL)
+
 typedef enum edn_opcode {
   omov,
   oint,
@@ -77,9 +81,9 @@ typedef struct edn_vm {
 
 typedef enum edn_error {
   kErrNone = 0,
-  kErrInvalidPack,
-  kErrInvalidFile,
-  kErrMallocFail,
+  kErrInvalidPack = 1,
+  kErrInvalidFile = 2,
+  kErrMallocFail = 3,
 } edn_error_t;
 
 typedef enum edn_reg_type {

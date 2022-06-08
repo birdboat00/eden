@@ -90,6 +90,7 @@ int main(int argc, char** argv) {
     FILE* outfile = fopen("code.eden", "wb");
     edn_dump_pack(stdout, &test_pack);
     edn_error_t err = edn_write_pack(outfile, &test_pack);
+    if (err != kErrNone) printf("failed to write pack: %i\n", err);
     fclose(outfile);
     return err;
   } else if (argc > 1 && strcmp(argv[1], "--read") == 0) {
@@ -97,6 +98,7 @@ int main(int argc, char** argv) {
     edn_pack_t pack;
     edn_error_t err = edn_read_pack(infile, &pack);
     if (err == kErrNone) edn_dump_pack(stdout, &pack);
+    else printf("Error while reading pack: %i\n", err);
     fclose(infile);
     return err;
   }
