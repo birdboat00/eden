@@ -70,22 +70,6 @@ typedef struct edn_pack {
   DEF_TABLE(edn_function_t, functions);
 } edn_pack_t;
 
-typedef struct edn_vm_params {
-  bool verbose;
-} edn_vm_params_t;
-
-typedef struct edn_vm {
-  edn_vm_params_t params;
-  edn_pack_t* pack;
-} edn_vm_t;
-
-typedef enum edn_error {
-  kErrNone = 0,
-  kErrInvalidPack = 1,
-  kErrInvalidFile = 2,
-  kErrMallocFail = 3,
-} edn_error_t;
-
 typedef enum edn_reg_type {
   integer,
   floating,
@@ -100,6 +84,32 @@ typedef struct edn_reg {
   } data;
   edn_reg_type_t type;
 } edn_reg_t;
+
+typedef struct edn_vm_params {
+  bool verbose;
+} edn_vm_params_t;
+
+typedef struct edn_callstack_entry {
+  u32 functionid;
+  usize ip;
+} edn_callstack_entry_t;
+
+typedef struct edn_vm {
+  edn_vm_params_t params;
+  edn_pack_t* pack;
+
+  u16 callstack_top;
+  edn_callstack_entry_t call_stack[65536];
+  
+  edn_reg_t registers[64];
+} edn_vm_t;
+
+typedef enum edn_error {
+  kErrNone = 0,
+  kErrInvalidPack = 1,
+  kErrInvalidFile = 2,
+  kErrMallocFail = 3,
+} edn_error_t;
 
 typedef struct edn_process_ctx {
   edn_reg_t regs[64];
