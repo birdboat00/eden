@@ -18,9 +18,9 @@ edn_pack_t create_test_pack() {
     ostr, r(1), i(1), // load str 1 into r1
     ostr, r(2), i(2), // load str 2 into r2
     ocall, 1, 0x01,   // call putStrLn (0x01) with no argument -> chooses string to print from r0
-    omov, r(0), r(1), // move r1 into r0
+    omove, r(0), r(1), // move r1 into r0
     ocall, 1, 0x01,   // call putStrLn (0x01) with no argument -> chooses string to print from r0
-    omov, r(0), r(2), // move r2 into r0
+    omove, r(0), r(2), // move r2 into r0
     ocall, 1, 0x01,   // call putStrLn (0x01) with no argument -> chooses string to print from r0
   };
   
@@ -30,10 +30,10 @@ edn_pack_t create_test_pack() {
   };
 
   static edn_bytecode_t bytecode_putStrLn[] = {
-    opccr(obifcall, 2, 0x01, 0)
-    opri(ostr, 4, 3)
-    opccr(obifcall, 2, 0x01, 4)
-    oret
+    opccr(obifcall, 2, 0x01, 0) // bifcall printreg
+    opri(ostr, 4, 3) // load newline 
+    opccr(obifcall, 2, 0x01, 4) // bifcall printreg newline
+    oret // return
   };
 
   static const edn_function_t putStrLn_func = {

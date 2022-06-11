@@ -2,8 +2,6 @@
 
 #include <stdlib.h>
 
-#define loop for(;;)
-
 edn_vm_t* edn_make_vm(edn_pack_t* pack, const edn_vm_params_t params) {
   edn_vm_t* vm = malloc(sizeof(edn_vm_t));
   if (isnull(vm)) {
@@ -16,31 +14,12 @@ edn_vm_t* edn_make_vm(edn_pack_t* pack, const edn_vm_params_t params) {
   return vm;
 }
 
-void bif_call(u32 fnid, edn_pack_t* pack, const edn_function_t* fn, edn_reg_t* regs, const edn_op_t* op) {
-  switch (fnid) {
-    case 0x01:
-      const edn_reg_t srcreg = regs[op->arg3];
-      switch (srcreg.type) {
-        case integer: printf("%i", srcreg.data.i); break;
-        case floating: printf("%f", srcreg.data.f); break;
-        case string: printf("%s", srcreg.data.s); break;
-        default: printf("%i", srcreg.data); break;
-      }
-      break;
-    default:
-      return;
-  }
-}
-
 edn_error_t edn_vm_interpret(edn_vm_t* vm, edn_pack_t* pack) {
-  static void* dispatch_table[opcode_count];
-  dispatch_table[omov] = &&do_omov;
-  dispatch_table[oint] = &&do_oint;
-  dispatch_table[oflt] = &&do_oflt;
-  dispatch_table[ostr] = &&do_ostr;
-  dispatch_table[ocall] = &&do_ocall;
-  dispatch_table[obifcall] = &&do_obifcall;
-  dispatch_table[oret] = &&do_oret;
+  static void* dispatch_table[opcode_count] = {
+    &&do_omove, &&do_oint, &&do_oflt, &&do_ostr,
+    &&do_oadd, &&do_osub, &&do_omul, &&do_odiv, &&do_oneg,
+    &&do_ocall, &&do_obifcall, &&do_oret
+  };
 
   #define stack_top_fn vm->pack->functions[vm->callstack[vm->callstack_top].functionid]
   #define stack_top_fn_id vm->callstack[vm->callstack_top].functionid
@@ -50,6 +29,12 @@ edn_error_t edn_vm_interpret(edn_vm_t* vm, edn_pack_t* pack) {
   goto *dispatch_table[stack_top_fn.bytecode[stack_top_ip += n]]
 #define op_argn(n) stack_top_fn.bytecode[stack_top_ip + n]
 
+#define artih_instruction(mathop) const bool isfloat = vm->registers[op_argn(2)].type == floating || vm->registers[op_argn(3)].type == floating;\
+        vm->registers[op_argn(1)].type = isfloat ? floating : integer;\
+        if (isfloat) vm->registers[op_argn(1)].data.f = vm->registers[op_argn(2)].data.f mathop vm->registers[op_argn(3)].data.f;\
+        else vm->registers[op_argn(1)].data.i = vm->registers[op_argn(2)].data.i mathop vm->registers[op_argn(3)].data.i;\
+        dispatch(4);
+
   vm->callstack_top = 0;
   vm->callstack[vm->callstack_top] = (edn_callstack_entry_t) {
     .ip = 0,
@@ -58,8 +43,8 @@ edn_error_t edn_vm_interpret(edn_vm_t* vm, edn_pack_t* pack) {
 
   dispatch(0);
 
-  loop {
-    do_omov:
+  for(;;) {
+    do_omove:
       {
         vm->registers[op_argn(1)] = vm->registers[op_argn(2)];
         dispatch(3);
@@ -82,22 +67,38 @@ edn_error_t edn_vm_interpret(edn_vm_t* vm, edn_pack_t* pack) {
         vm->registers[op_argn(1)].type = string;
         dispatch(3);
       }
+    do_oadd: { artih_instruction(+); }
+    do_osub: { artih_instruction(-); }
+    do_omul: { artih_instruction(*); }
+    do_odiv: { artih_instruction(/); }
+    do_oneg: {
+      vm->registers[op_argn(1)].type = vm->registers[op_argn(2)].type;
+      if (vm->registers[op_argn(2)].type == floating) {
+        vm->registers[op_argn(1)].data.f = -vm->registers[op_argn(2)].data.f;
+      } else if (vm->registers[op_argn(2)].type == integer) {
+        vm->registers[op_argn(1)].data.i = -vm->registers[op_argn(2)].data.i;
+      } else {
+        return kErrInvalidPack;
+      }
+
+      dispatch(3); // opcode + dest + src
+    }
     do_ocall:
       {
         const u32 arity = op_argn(1);
-        const u32 calledid = op_argn(2);
+        const u32 fnid = op_argn(2);
         vm->callstack[vm->callstack_top].ip += (2 + arity);
         vm->callstack_top = vm->callstack_top + 1;
-        vm->callstack[vm->callstack_top].functionid = calledid;
+        vm->callstack[vm->callstack_top].functionid = fnid;
         vm->callstack[vm->callstack_top].ip = 0;
         dispatch(0);
       }
     do_obifcall:
       {
         const u32 arity = op_argn(1);
-        const u32 bifid = op_argn(2);
-        const edn_op_t op = (edn_op_t) { .arg1 = op_argn(1), .arg2 = op_argn(2), .arg3 = op_argn(3), .opcode = op_argn(0) };
-        bif_call(bifid, vm->pack, &vm->pack->functions[vm->callstack[vm->callstack_top].functionid], vm->registers, &op);
+        const edn_op_t op = (edn_op_t) { .arg1 = op_argn(1), .arg2 = op_argn(2), .arg3 = op_argn(3), .arg4 = op_argn(4), .arg5 = op_argn(5), .opcode = op_argn(0) };
+        const edn_error_t err = edn_bif_dispatch_bif(vm, op_argn(2), &op);
+        if (err != kErrNone) return err;
         dispatch(2 + arity);
       }
     do_oret:
@@ -106,6 +107,8 @@ edn_error_t edn_vm_interpret(edn_vm_t* vm, edn_pack_t* pack) {
         dispatch(0);
       }
   }
+
+  return kErrNone;
 }
 
 edn_error_t edn_run_vm(edn_vm_t* vm) {

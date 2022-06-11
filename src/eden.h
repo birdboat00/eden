@@ -33,7 +33,7 @@ typedef char* str;
 #define bit_check(val, idx) ((val >> idx) & 1UL)
 
 typedef enum edn_opcode {
-  omov,
+  omove,
   oint, oflt, ostr,
   oadd, osub, omul, odiv,
   oneg,
@@ -49,7 +49,11 @@ typedef struct edn_op {
   i32 arg1;
   i32 arg2;
   i32 arg3;
+  i32 arg4;
+  i32 arg5;
 } edn_op_t;
+
+void edn_op_to_str(const edn_op_t op, str buffer, usize buffersz);
 
 typedef struct edn_function {
   edn_bytecode_t* bytecode;
@@ -127,5 +131,7 @@ edn_error_t edn_run_vm(edn_vm_t* vm);
 edn_error_t edn_write_pack(FILE* outfile, const edn_pack_t* pack);
 edn_error_t edn_read_pack(FILE* infile, edn_pack_t* out_pack);
 void edn_dump_pack(FILE* outfile, const edn_pack_t* pack);
+
+edn_error_t edn_bif_dispatch_bif(edn_vm_t* vm, u32 bifid, const edn_op_t* op);
 
 #endif

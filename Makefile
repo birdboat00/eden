@@ -1,4 +1,4 @@
-SOURCES = src/main.c src/pack.c src/op.c src/vm.c src/builtin_test_pack.c
+SOURCES = src/main.c src/pack.c src/op.c src/bif.c src/vm.c src/builtin_test_pack.c
 OBJ = $(patsubst %.c,%.o, $(SOURCES))
 CC = gcc
 ARTIFACT = eden.exe

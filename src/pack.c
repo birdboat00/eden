@@ -244,12 +244,18 @@ void edn_dump_pack(FILE* stream, const edn_pack_t* pack) {
       const usize bclen = fn->bytecodelen;
       const str opcode = edn_opcode_to_str(fn->bytecode[j]);
       u32 arity = edn_op_arity(fn->bytecode[j], (j + 1 < bclen) ? fn->bytecode[j + 1] : 0);
+      const edn_op_t op = (edn_op_t) {
+        .opcode = fn->bytecode[j],
+        .arg1 = (j + 1 < bclen) ? fn->bytecode[j + 1] : 0,
+        .arg2 = (j + 2 < bclen) ? fn->bytecode[j + 2] : 0,
+        .arg3 = (j + 3 < bclen) ? fn->bytecode[j + 3] : 0,
+        .arg4 = (j + 4 < bclen) ? fn->bytecode[j + 4] : 0,
+        .arg5 = (j + 5 < bclen) ? fn->bytecode[j + 5] : 0
+      };
 
-      fprintf(stream, "    %s(%i) <- ", opcode, arity);
-      for (usize a = 1; a <= arity; a++) {
-        fprintf(stream, " %i", (j + a < bclen) ? fn->bytecode[j + a] : 0);
-      }
-      fprintf(stream, "\n");
+      char buf[128];
+      edn_op_to_str(op, buf, 128);
+      fprintf(stream, "    %s\n", buf);
       j += arity;
     }
     fprintf(stream, "  }\n");
