@@ -14,6 +14,29 @@ edn_vm_t* edn_make_vm(edn_pack_t* pack, const edn_vm_params_t params) {
   return vm;
 }
 
+#define IMPL_ARTIH_INSTR(op, opname) edn_err_t opname##_terms(const edn_term_t* lhs, const edn_term_t* rhs, edn_term_t* res) {\
+  if (edn_term_is_floatnum(lhs)) {\
+    if (edn_term_is_floatnum(rhs)) {\
+      *res = edn_term_from_f64(edn_term_get_floatnum(lhs) op edn_term_get_floatnum(rhs));\
+    } else if (edn_term_is_intnum(rhs)) {\
+      *res = edn_term_from_f64(edn_term_get_floatnum(lhs) op edn_term_get_intnum(rhs));\
+    }\
+  } else if (edn_term_is_intnum(lhs)) {\
+    if (edn_term_is_floatnum(rhs)) {\
+      *res = edn_term_from_f64(edn_term_get_intnum(lhs) op edn_term_get_floatnum(rhs));\
+    } else if (edn_term_is_intnum(rhs)) {\
+      *res = edn_term_from_f64(edn_term_get_intnum(lhs) op edn_term_get_intnum(rhs));\
+    }\
+  }\
+  return edn_make_err(kErrModVm, kErrInvalidPack);\
+}
+
+IMPL_ARTIH_INSTR(+, add)
+IMPL_ARTIH_INSTR(-, sub)
+IMPL_ARTIH_INSTR(*, mul)
+IMPL_ARTIH_INSTR(/, div)
+
+
 edn_err_t edn_vm_interpret(edn_vm_t* vm, edn_pack_t* pack) {
   static void* dispatch_table[opcode_count] = {
     &&do_omove, &&do_oint, &&do_oflt, &&do_ostr,
@@ -29,13 +52,6 @@ edn_err_t edn_vm_interpret(edn_vm_t* vm, edn_pack_t* pack) {
   goto *dispatch_table[stack_top_fn.bytecode[stack_top_ip += n]]
 #define op_argn(n) stack_top_fn.bytecode[stack_top_ip + n]
 #define reg_argn(n) (vm->registers[op_argn(n)])
-
-/*#define artih_instruction(mathop) const bool isfloat = vm->registers[op_argn(2)].type == floating || vm->registers[op_argn(3)].type == floating;\
-        vm->registers[op_argn(1)].type = isfloat ? floating : integer;\
-        if (isfloat) vm->registers[op_argn(1)].data.f = vm->registers[op_argn(2)].data.f mathop vm->registers[op_argn(3)].data.f;\
-        else vm->registers[op_argn(1)].data.i = vm->registers[op_argn(2)].data.i mathop vm->registers[op_argn(3)].data.i;\
-        dispatch(4);*/
-#define artih_instruction(mathop) printf("math op '%s' not implemented.\n", #mathop)
 
   vm->callstack_top = 0;
   vm->callstack[vm->callstack_top] = (edn_callstack_entry_t) {
@@ -66,10 +82,42 @@ edn_err_t edn_vm_interpret(edn_vm_t* vm, edn_pack_t* pack) {
         vm->registers[op_argn(1)] = edn_term_from_str(vm->pack->strings[op_argn(2)]);
         dispatch(3);
       }
-    do_oadd: { artih_instruction(+); }
-    do_osub: { artih_instruction(-); }
-    do_omul: { artih_instruction(*); }
-    do_odiv: { artih_instruction(/); }
+    do_oadd: {
+      edn_term_t result;
+      const edn_err_t err = add_terms(&reg_argn(2), &reg_argn(3), &result);
+      if (!edn_err_is_ok(err)) {
+        return err;
+      }
+      vm->registers[op_argn(1)] = result;
+      dispatch(4); // opcode + dest + lhs + rhs
+    }
+    do_osub: {
+      edn_term_t result;
+      const edn_err_t err = sub_terms(&reg_argn(2), &reg_argn(3), &result);
+      if (!edn_err_is_ok(err)) {
+        return err;
+      }
+      vm->registers[op_argn(1)] = result;
+      dispatch(4); // opcode + dest + lhs + rhs
+    }
+    do_omul: {
+      edn_term_t result;
+      const edn_err_t err = mul_terms(&reg_argn(2), &reg_argn(3), &result);
+      if (!edn_err_is_ok(err)) {
+        return err;
+      }
+      vm->registers[op_argn(1)] = result;
+      dispatch(4); // opcode + dest + lhs + rhs
+    }
+    do_odiv: {
+      edn_term_t result;
+      const edn_err_t err = div_terms(&reg_argn(2), &reg_argn(3), &result);
+      if (!edn_err_is_ok(err)) {
+        return err;
+      }
+      vm->registers[op_argn(1)] = result;
+      dispatch(4); // opcode + dest + lhs + rhs
+    }
     do_oneg: {
       if (edn_term_is_intnum(&reg_argn(2))) {
         reg_argn(1) = edn_term_from_i32(-edn_term_get_intnum(&reg_argn(2)));
@@ -110,6 +158,6 @@ edn_err_t edn_vm_interpret(edn_vm_t* vm, edn_pack_t* pack) {
   return edn_make_err(kErrModVm, kErrNone);
 }
 
-edn_err_t edn_run_vm(edn_vm_t* vm) {
+edn_err_t edn_vm_run(edn_vm_t* vm) {
   return edn_vm_interpret(vm, vm->pack);
 }

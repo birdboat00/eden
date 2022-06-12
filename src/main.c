@@ -46,22 +46,22 @@ int main(u32 argc, str* argv) {
   if (has_arg("--dumptestpack", argc, argv)) {
     FILE* file = fopen("dump.txt", "w");
     edn_pack_t test_pack = create_test_pack();
-    edn_dump_pack(isnull(file) ? stdout : file, &test_pack);
+    edn_pack_dump(isnull(file) ? stdout : file, &test_pack);
     fclose(file);
     return 0;
   } else if (has_arg("--savetestpack", argc, argv)) {
     FILE* outfile = fopen("code.eden", "wb");
     edn_pack_t test_pack = create_test_pack();
-    edn_dump_pack(stdout, &test_pack);
-    edn_err_t err = edn_write_pack(outfile, &test_pack);
+    edn_pack_dump(stdout, &test_pack);
+    edn_err_t err = edn_pack_write(outfile, &test_pack);
     if (!edn_err_is_ok(err)) printf("failed to write pack: %i\n", err);
     fclose(outfile);
     return err.kind;
   } else if (has_arg("--readtestpack", argc, argv)) {
     FILE* infile = fopen("code.eden", "rb");
     edn_pack_t pack;
-    edn_err_t err = edn_read_pack(infile, &pack);
-    if (edn_err_is_ok(err)) edn_dump_pack(stdout, &pack);
+    edn_err_t err = edn_pack_read(infile, &pack);
+    if (edn_err_is_ok(err)) edn_pack_dump(stdout, &pack);
     else printf("Error while reading pack: %i\n", err);
     fclose(infile);
     return err.kind;
@@ -75,7 +75,7 @@ int main(u32 argc, str* argv) {
     }
 
     edn_pack_t pack;
-    const edn_err_t err = edn_read_pack(file, &pack);
+    const edn_err_t err = edn_pack_read(file, &pack);
     if (!edn_err_is_ok(err)) {
       printf("failed to read pack file: %s\n", edn_err_to_str(&err));
       return err.kind;
@@ -87,7 +87,7 @@ int main(u32 argc, str* argv) {
       return kErrMallocFail;
     }
 
-    const edn_err_t runerr = edn_run_vm(vm);
+    const edn_err_t runerr = edn_vm_run(vm);
     if (!edn_err_is_ok(runerr)) {
       printf("VM ERROR - dumping register...\n");
       for(usize i = 0; i < arraylen(edn_reg_t, vm->registers); i++) {

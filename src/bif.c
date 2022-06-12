@@ -36,12 +36,15 @@ edn_err_t edn_bif_is_string(edn_vm_t* vm, const edn_op_t* op, edn_term_t* result
 }
 
 edn_err_t edn_bif_dispatch_bif(edn_vm_t* vm, u32 bifid, const edn_op_t* op, edn_term_t* result) {
-
   typedef edn_err_t (*edn_bif_fn_ptr)(edn_vm_t* vm, const edn_op_t* op, edn_term_t* result);
 
   static edn_bif_fn_ptr dispatch_table[4] = {
     &edn_bif_printreg, &edn_bif_is_integer, &edn_bif_is_float, &edn_bif_is_string
   };
+
+  if (bifid >= arraylen(edn_bif_fn_ptr, dispatch_table)) {
+    return edn_make_err(kErrModBif, kErrBifNotFound);
+  }
 
   return dispatch_table[bifid <= 0 ? 0 : bifid - 1](vm, op, result);
 }

@@ -33,7 +33,7 @@ const str edn_opcode_to_str(const edn_opcode_t op) {
   // UNREACHABLE
 }
 
-u32 edn_op_arity(const edn_opcode_t op, const edn_bytecode_t next) {
+u32 edn_opcode_arity(const edn_opcode_t op, const edn_bytecode_t next) {
   switch (op) {
     case oadd: case osub: case omul: case odiv: return 3;
     case omove: case oint: case oflt: case ostr: case oneg: return 2;

@@ -9,6 +9,9 @@ edn_err_t edn_make_err(edn_err_module_t mod, edn_err_kind_t err) {
 
 str edn_err_to_str(const edn_err_t* err) {
   str buf = calloc(7, sizeof(char));
+  if (isnull(buf)) {
+    return "(failed to malloc error string buffer)";
+  }
   snprintf(buf, 7, "%i-%i", err->module, err->kind);
   return buf;
 }

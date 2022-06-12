@@ -88,7 +88,7 @@ edn_err_t write_header(FILE* outfile, const edn_pack_t* pack) {
   return edn_make_err(kErrModPack, kErrNone);
 }
 
-edn_err_t edn_write_pack(FILE* file, const edn_pack_t* pack) {
+edn_err_t edn_pack_write(FILE* file, const edn_pack_t* pack) {
   if (isnull(file)) {
     return edn_make_err(kErrModPack, kErrInvalidFile);
   }
@@ -172,7 +172,7 @@ edn_err_t read_functions_table(FILE* file, u32* out_tablelen, edn_function_t** o
   return edn_make_err(kErrModPack, kErrNone);
 }
 
-edn_err_t edn_read_pack(FILE* infile, edn_pack_t* out_pack) {
+edn_err_t edn_pack_read(FILE* infile, edn_pack_t* out_pack) {
   char magic_buf[EDEN_PACK_MAGIC_LEN + 1];
   magic_buf[EDEN_PACK_MAGIC_LEN] = '\0';
   fread(&magic_buf[0], sizeof(EDEN_PACK_MAGIC[0]), EDEN_PACK_MAGIC_LEN, infile);
@@ -216,7 +216,7 @@ edn_err_t edn_read_pack(FILE* infile, edn_pack_t* out_pack) {
 }
 
 // TODO: fix all of this shitcode.
-void edn_dump_pack(FILE* stream, const edn_pack_t* pack) {
+void edn_pack_dump(FILE* stream, const edn_pack_t* pack) {
   fprintf(stream, "--- BEGIN pack DUMP ---\n");
 
   fprintf(stream, "pack\n  name-> %s\n  targetversion-> %i\n  entryfuncid-> %i\n", pack->name, pack->target_version, pack->entryfuncid);
@@ -243,7 +243,7 @@ void edn_dump_pack(FILE* stream, const edn_pack_t* pack) {
     for(size_t j = 0; j < fn->bytecodelen; j++) {
       const usize bclen = fn->bytecodelen;
       const str opcode = edn_opcode_to_str(fn->bytecode[j]);
-      u32 arity = edn_op_arity(fn->bytecode[j], (j + 1 < bclen) ? fn->bytecode[j + 1] : 0);
+      u32 arity = edn_opcode_arity(fn->bytecode[j], (j + 1 < bclen) ? fn->bytecode[j + 1] : 0);
       const edn_op_t op = (edn_op_t) {
         .opcode = fn->bytecode[j],
         .arg1 = (j + 1 < bclen) ? fn->bytecode[j + 1] : 0,

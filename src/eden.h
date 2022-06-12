@@ -39,6 +39,7 @@ typedef enum edn_err_kind {
   kErrInvalidFile,
   kErrMallocFail,
   kErrTermNotPrintable,
+  kErrBifNotFound
 } edn_err_kind_t;
 typedef enum edn_err_module {
   kErrModBif,
@@ -104,7 +105,7 @@ typedef struct edn_op {
   i32 arg5;
 } edn_op_t;
 const str edn_opcode_to_str(const edn_opcode_t op);
-u32 edn_op_arity(const edn_opcode_t op, const edn_bytecode_t next);
+u32 edn_opcode_arity(const edn_opcode_t op, const edn_bytecode_t next);
 void edn_op_to_str(const edn_op_t op, str buffer, usize buffersz);
 
 // Module: pack
@@ -126,9 +127,9 @@ typedef struct edn_pack {
   edn_function_t* functions;
   u32 functionslen;
 } edn_pack_t;
-edn_err_t edn_write_pack(FILE* outfile, const edn_pack_t* pack);
-edn_err_t edn_read_pack(FILE* infile, edn_pack_t* out_pack);
-void edn_dump_pack(FILE* outfile, const edn_pack_t* pack);
+edn_err_t edn_pack_write(FILE* outfile, const edn_pack_t* pack);
+edn_err_t edn_pack_read(FILE* infile, edn_pack_t* out_pack);
+void edn_pack_dump(FILE* outfile, const edn_pack_t* pack);
 
 // Module: vm
 typedef enum edn_reg_type {
@@ -168,7 +169,7 @@ typedef struct edn_process {
   edn_process_ctx_t ctx;
 } edn_process_t;
 edn_vm_t* edn_make_vm(edn_pack_t* pack, const edn_vm_params_t params);
-edn_err_t edn_run_vm(edn_vm_t* vm);
+edn_err_t edn_vm_run(edn_vm_t* vm);
 
 // Module: bif
 edn_err_t edn_bif_dispatch_bif(edn_vm_t* vm, u32 bifid, const edn_op_t* op, edn_term_t* result);
