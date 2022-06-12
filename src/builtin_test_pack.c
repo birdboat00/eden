@@ -44,7 +44,7 @@ edn_pack_t create_test_pack() {
   static i32 ints[] = { 10, 20, 40 };
   static f64 floats[] = { -1.2, 1.0, 10.23 };
   static str strings[] = { "gamma", "beta", "alpha", "\n" };
-  edn_function_t* funcs = malloc(sizeof(edn_function_t) * 2);
+  edn_function_t* funcs = calloc(2, sizeof(edn_function_t));
   funcs[0] = main_func;
   funcs[1] = putStrLn_func;
 

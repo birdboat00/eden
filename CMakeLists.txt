@@ -6,6 +6,8 @@ project(
   LANGUAGES C
 )
 
+# add_library(libeden)
+
 add_executable(eden
   src/bif.c
   src/builtin_test_pack.c
@@ -16,3 +18,5 @@ add_executable(eden
   src/term.c
   src/vm.c
 )
+
+# target_link_libraries(eden PRIVATE libeden)

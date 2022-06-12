@@ -32,7 +32,7 @@ DEF_TABLE_WRITE_PRIM(floats, floatslen);
   assert(out_tabledata != NULL); \
   assert(f != NULL); \
   const u32 len = read_u32(f); \
-  type* table = malloc(sizeof(type) * len); \
+  type* table = calloc(len, sizeof(type)); \
   if (table == NULL) { return edn_make_err(kErrModPack, kErrMallocFail); } \
   if (fread(&table[0], sizeof(type), len, f) < len) { return edn_make_err(kErrModPack, kErrInvalidPack); } \
   *out_tabledata = table; \
@@ -112,7 +112,7 @@ edn_err_t edn_write_pack(FILE* file, const edn_pack_t* pack) {
 
 str read_string(FILE* file) {
   const usize len = read_usize(file);
-  str string = malloc(sizeof(char) * (len + 1));
+  str string = calloc(len + 1, sizeof(char));
   if (string == NULL) {
     printf("failed to allocate string buffer when reading pack string.\n");
     return string;
@@ -129,7 +129,7 @@ edn_err_t read_strings_table(FILE* file, u32* out_tablelen, str** out_tabledata)
 
   const u32 len = read_u32(file);
 
-  str* table = malloc(sizeof(str) * len);
+  str* table = calloc(len, sizeof(str));
   if (table == NULL) {
     return edn_make_err(kErrModPack, kErrMallocFail);
   }
@@ -150,14 +150,14 @@ edn_err_t read_functions_table(FILE* file, u32* out_tablelen, edn_function_t** o
 
   const u32 len = read_u32(file);
 
-  edn_function_t* table = malloc(sizeof(edn_function_t) * len);
+  edn_function_t* table = calloc(len, sizeof(edn_function_t));
   if (table == NULL) {
     return edn_make_err(kErrModPack, kErrMallocFail);
   }
   
   for (usize i = 0; i < len; i++) {
     table[i].bytecodelen = read_usize(file);
-    table[i].bytecode = malloc(sizeof(edn_bytecode_t) * table[i].bytecodelen);
+    table[i].bytecode = calloc(table[i].bytecodelen, sizeof(edn_bytecode_t));
     if (table[i].bytecode == NULL) {
       return edn_make_err(kErrModPack, kErrMallocFail);
     }
