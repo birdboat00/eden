@@ -1,8 +1,8 @@
 #include <stdio.h>
 #include <string.h>
 
-#include "eden.h"
-#include "builtin_test_pack.h"
+#include "libceden/eden.h"
+#include "libceden/builtin_test_pack.h"
 
 bool has_arg(const str arg, int argc, str* argv) {
   for (int i = 0; i < argc; i++) {
