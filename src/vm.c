@@ -14,7 +14,7 @@ edn_vm_t* edn_make_vm(edn_pack_t* pack, const edn_vm_params_t params) {
   return vm;
 }
 
-edn_error_t edn_vm_interpret(edn_vm_t* vm, edn_pack_t* pack) {
+edn_err_t edn_vm_interpret(edn_vm_t* vm, edn_pack_t* pack) {
   static void* dispatch_table[opcode_count] = {
     &&do_omove, &&do_oint, &&do_oflt, &&do_ostr,
     &&do_oadd, &&do_osub, &&do_omul, &&do_odiv, &&do_oneg,
@@ -24,8 +24,8 @@ edn_error_t edn_vm_interpret(edn_vm_t* vm, edn_pack_t* pack) {
   #define stack_top_fn vm->pack->functions[vm->callstack[vm->callstack_top].functionid]
   #define stack_top_fn_id vm->callstack[vm->callstack_top].functionid
   #define stack_top_ip vm->callstack[vm->callstack_top].ip
-#define dispatch(n) if (dispatch_table[stack_top_fn.bytecode[stack_top_ip + n]] == NULL) return kErrInvalidPack;\
-  if (stack_top_ip + n >= stack_top_fn.bytecodelen) { printf("end of bytecode reached (%i)\n", stack_top_ip + n); return kErrNone;}\
+#define dispatch(n) if (dispatch_table[stack_top_fn.bytecode[stack_top_ip + n]] == NULL) return edn_make_err(kErrModVm, kErrInvalidPack);\
+  if (stack_top_ip + n >= stack_top_fn.bytecodelen) { printf("end of bytecode reached (%i)\n", stack_top_ip + n); return edn_make_err(kErrModVm, kErrNone);}\
   goto *dispatch_table[stack_top_fn.bytecode[stack_top_ip += n]]
 #define op_argn(n) stack_top_fn.bytecode[stack_top_ip + n]
 
@@ -78,7 +78,7 @@ edn_error_t edn_vm_interpret(edn_vm_t* vm, edn_pack_t* pack) {
       } else if (vm->registers[op_argn(2)].type == integer) {
         vm->registers[op_argn(1)].data.i = -vm->registers[op_argn(2)].data.i;
       } else {
-        return kErrInvalidPack;
+        return edn_make_err(kErrModVm, kErrInvalidPack);
       }
 
       dispatch(3); // opcode + dest + src
@@ -97,8 +97,8 @@ edn_error_t edn_vm_interpret(edn_vm_t* vm, edn_pack_t* pack) {
       {
         const u32 arity = op_argn(1);
         const edn_op_t op = (edn_op_t) { .arg1 = op_argn(1), .arg2 = op_argn(2), .arg3 = op_argn(3), .arg4 = op_argn(4), .arg5 = op_argn(5), .opcode = op_argn(0) };
-        const edn_error_t err = edn_bif_dispatch_bif(vm, op_argn(2), &op);
-        if (err != kErrNone) return err;
+        const edn_err_t err = edn_bif_dispatch_bif(vm, op_argn(2), &op);
+        if (!edn_err_is_ok(err)) return err;
         dispatch(2 + arity);
       }
     do_oret:
@@ -108,9 +108,9 @@ edn_error_t edn_vm_interpret(edn_vm_t* vm, edn_pack_t* pack) {
       }
   }
 
-  return kErrNone;
+  return edn_make_err(kErrModVm, kErrNone);
 }
 
-edn_error_t edn_run_vm(edn_vm_t* vm) {
+edn_err_t edn_run_vm(edn_vm_t* vm) {
   return edn_vm_interpret(vm, vm->pack);
 }

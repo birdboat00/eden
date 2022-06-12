@@ -16,28 +16,28 @@ DEF_RW_FOR(i32);
 DEF_RW_FOR(usize);
 DEF_RW_FOR(f64);
 
-#define DEF_TABLE_WRITE_PRIM(tablename, tablelenname) edn_error_t write_##tablename##_table(FILE* f, const edn_pack_t* pack) {\
+#define DEF_TABLE_WRITE_PRIM(tablename, tablelenname) edn_err_t write_##tablename##_table(FILE* f, const edn_pack_t* pack) {\
   if(pack->tablelenname > 0) { \
     write_u32(f, pack->tablelenname); \
     fwrite(&(pack->tablename[0]), sizeof(pack->tablename[0]), pack->tablelenname, f); \
   } \
-  return kErrNone; \
+  return edn_make_err(kErrModPack, kErrNone); \
 }
 
 DEF_TABLE_WRITE_PRIM(integers, integerslen);
 DEF_TABLE_WRITE_PRIM(floats, floatslen);
 
-#define DEF_TABLE_READ_PRIM(type, tablename) edn_error_t read_##tablename##_table(FILE* f, u32* out_tablelen, type** out_tabledata) { \
+#define DEF_TABLE_READ_PRIM(type, tablename) edn_err_t read_##tablename##_table(FILE* f, u32* out_tablelen, type** out_tabledata) { \
   assert(out_tablelen != NULL); \
   assert(out_tabledata != NULL); \
   assert(f != NULL); \
   const u32 len = read_u32(f); \
   type* table = malloc(sizeof(type) * len); \
-  if (table == NULL) { return kErrMallocFail; } \
-  if (fread(&table[0], sizeof(type), len, f) < len) { return kErrInvalidPack; } \
+  if (table == NULL) { return edn_make_err(kErrModPack, kErrMallocFail); } \
+  if (fread(&table[0], sizeof(type), len, f) < len) { return edn_make_err(kErrModPack, kErrInvalidPack); } \
   *out_tabledata = table; \
   *out_tablelen = len; \
-  return kErrNone; \
+  return edn_make_err(kErrModPack, kErrNone); \
 }
 
 DEF_TABLE_READ_PRIM(i32, integers);
@@ -49,17 +49,17 @@ void write_string(FILE* outfile, const str string) {
   if (len > 0) fwrite(string, sizeof(string[0]), len, outfile);
 }
 
-edn_error_t write_strings_table(FILE* file, const edn_pack_t* pack) {
+edn_err_t write_strings_table(FILE* file, const edn_pack_t* pack) {
   if (pack->stringslen > 0) {
     write_u32(file, pack->stringslen);
     for (usize i = 0; i < pack->stringslen; i++) {
       write_string(file, pack->strings[i]);
     }
   }
-  return kErrNone;
+  return edn_make_err(kErrModPack, kErrNone);
 }
 
-edn_error_t write_functions_table(FILE* file, const edn_pack_t* pack) {
+edn_err_t write_functions_table(FILE* file, const edn_pack_t* pack) {
   printf("Writing functions table with length: %u", pack->functionslen);
   write_u32(file, pack->functionslen);
   for(usize i = 0; i < pack->functionslen; i++) {
@@ -68,10 +68,10 @@ edn_error_t write_functions_table(FILE* file, const edn_pack_t* pack) {
       write_i32(file, pack->functions[i].bytecode[j]);
     }
   }
-  return kErrNone;
+  return edn_make_err(kErrModPack, kErrNone);
 }
 
-edn_error_t write_header(FILE* outfile, const edn_pack_t* pack) {
+edn_err_t write_header(FILE* outfile, const edn_pack_t* pack) {
   fwrite(EDEN_PACK_MAGIC, sizeof(EDEN_PACK_MAGIC[0]), strlen(EDEN_PACK_MAGIC), outfile);
 
   write_u16(outfile, pack->target_version);
@@ -85,25 +85,25 @@ edn_error_t write_header(FILE* outfile, const edn_pack_t* pack) {
   if (pack->functionslen > 0) bit_set(tables, 3);
   write_u8(outfile, tables); 
 
-  return kErrNone;
+  return edn_make_err(kErrModPack, kErrNone);
 }
 
-edn_error_t edn_write_pack(FILE* file, const edn_pack_t* pack) {
+edn_err_t edn_write_pack(FILE* file, const edn_pack_t* pack) {
   if (isnull(file)) {
-    return kErrInvalidFile;
+    return edn_make_err(kErrModPack, kErrInvalidFile);
   }
   
-  edn_error_t err = write_header(file, pack);
-  if (err != kErrNone) { return err; }
+  edn_err_t err = write_header(file, pack);
+  if (!edn_err_is_ok(err)) { return err; }
 
   err = write_integers_table(file, pack);
-  if (err != kErrNone) { return err; }
+  if (!edn_err_is_ok(err)) { return err; }
   
   err = write_floats_table(file, pack);
-  if (err != kErrNone) { return err; }
+  if (!edn_err_is_ok(err)) { return err; }
 
   err = write_strings_table(file, pack);
-  if (err != kErrNone) { return err; }
+  if (!edn_err_is_ok(err)) { return err; }
 
   err = write_functions_table(file, pack);
 
@@ -122,7 +122,7 @@ str read_string(FILE* file) {
   return string;
 }
 
-edn_error_t read_strings_table(FILE* file, u32* out_tablelen, str** out_tabledata) {
+edn_err_t read_strings_table(FILE* file, u32* out_tablelen, str** out_tabledata) {
   assert(out_tablelen != NULL);
   assert(out_tabledata != NULL);
   assert(file != NULL);
@@ -131,7 +131,7 @@ edn_error_t read_strings_table(FILE* file, u32* out_tablelen, str** out_tabledat
 
   str* table = malloc(sizeof(str) * len);
   if (table == NULL) {
-    return kErrMallocFail;
+    return edn_make_err(kErrModPack, kErrMallocFail);
   }
 
   for (usize i = 0; i < len; i++) {
@@ -140,10 +140,10 @@ edn_error_t read_strings_table(FILE* file, u32* out_tablelen, str** out_tabledat
 
   *out_tabledata = table;
   *out_tablelen = len;
-  return kErrNone;
+  return edn_make_err(kErrModPack, kErrNone);
 }
 
-edn_error_t read_functions_table(FILE* file, u32* out_tablelen, edn_function_t** out_tabledata) {
+edn_err_t read_functions_table(FILE* file, u32* out_tablelen, edn_function_t** out_tabledata) {
   assert(out_tablelen != NULL);
   assert(out_tabledata != NULL);
   assert(file != NULL);
@@ -152,14 +152,14 @@ edn_error_t read_functions_table(FILE* file, u32* out_tablelen, edn_function_t**
 
   edn_function_t* table = malloc(sizeof(edn_function_t) * len);
   if (table == NULL) {
-    return kErrMallocFail;
+    return edn_make_err(kErrModPack, kErrMallocFail);
   }
   
   for (usize i = 0; i < len; i++) {
     table[i].bytecodelen = read_usize(file);
     table[i].bytecode = malloc(sizeof(edn_bytecode_t) * table[i].bytecodelen);
     if (table[i].bytecode == NULL) {
-      return kErrMallocFail;
+      return edn_make_err(kErrModPack, kErrMallocFail);
     }
     for (usize j = 0; j < table[i].bytecodelen; j++) {
       table[i].bytecode[j] = read_i32(file);
@@ -169,22 +169,22 @@ edn_error_t read_functions_table(FILE* file, u32* out_tablelen, edn_function_t**
   *out_tabledata = table;
   *out_tablelen = len;
 
-  return kErrNone;
+  return edn_make_err(kErrModPack, kErrNone);
 }
 
-edn_error_t edn_read_pack(FILE* infile, edn_pack_t* out_pack) {
+edn_err_t edn_read_pack(FILE* infile, edn_pack_t* out_pack) {
   char magic_buf[EDEN_PACK_MAGIC_LEN + 1];
   magic_buf[EDEN_PACK_MAGIC_LEN] = '\0';
   fread(&magic_buf[0], sizeof(EDEN_PACK_MAGIC[0]), EDEN_PACK_MAGIC_LEN, infile);
   if (strcmp(&magic_buf[0], EDEN_PACK_MAGIC) != 0) {
     printf("file is not a pack file.\n");
-    return kErrInvalidPack;
+    return edn_make_err(kErrModPack, kErrInvalidPack);
   }
 
   (*out_pack).target_version = read_u16(infile);
   if (out_pack->target_version != EDEN_BYTECODE_VERSION) {
     printf("pack target version (%u) is different from eden vm bytecode version (%u).\n", out_pack->target_version, EDEN_BYTECODE_VERSION);
-    return kErrInvalidPack;
+    return edn_make_err(kErrModPack, kErrInvalidPack);
   }
 
   (*out_pack).name = read_string(infile);
@@ -193,26 +193,26 @@ edn_error_t edn_read_pack(FILE* infile, edn_pack_t* out_pack) {
   uint8_t tables = read_u8(infile);
 
   if (bit_check(tables, 0)) {
-    edn_error_t err = read_integers_table(infile, &((*out_pack).integerslen), &((*out_pack).integers));
-    if (err != kErrNone) return err;
+    edn_err_t err = read_integers_table(infile, &((*out_pack).integerslen), &((*out_pack).integers));
+    if (!edn_err_is_ok(err)) return err;
   }
 
   if (bit_check(tables, 1)) {
-    edn_error_t err = read_floats_table(infile, &((*out_pack).floatslen), &((*out_pack).floats));
-    if (err != kErrNone) return err;
+    edn_err_t err = read_floats_table(infile, &((*out_pack).floatslen), &((*out_pack).floats));
+    if (!edn_err_is_ok(err)) return err;
   }
 
   if (bit_check(tables, 2)) {
-    edn_error_t err = read_strings_table(infile, &((*out_pack).stringslen), &((*out_pack).strings));
-    if (err != kErrNone) return err;
+    edn_err_t err = read_strings_table(infile, &((*out_pack).stringslen), &((*out_pack).strings));
+    if (!edn_err_is_ok(err)) return err;
   }
   
   if (bit_check(tables, 3)) {
-    edn_error_t err = read_functions_table(infile, &((*out_pack).functionslen), &((*out_pack).functions));
-    if (err != kErrNone) return err;
+    edn_err_t err = read_functions_table(infile, &((*out_pack).functionslen), &((*out_pack).functions));
+    if (!edn_err_is_ok(err)) return err;
   }
 
-  return kErrNone;
+  return edn_make_err(kErrModPack, kErrNone);
 }
 
 // TODO: fix all of this shitcode.
