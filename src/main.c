@@ -55,7 +55,7 @@ int main(u32 argc, str* argv) {
     FILE* infile = fopen("code.eden", "rb");
     edn_pack_t pack;
     edn_err_t err = edn_read_pack(infile, &pack);
-    if (!edn_err_is_ok(err)) edn_dump_pack(stdout, &pack);
+    if (edn_err_is_ok(err)) edn_dump_pack(stdout, &pack);
     else printf("Error while reading pack: %i\n", err);
     fclose(infile);
     return err.kind;
@@ -68,7 +68,9 @@ int main(u32 argc, str* argv) {
   if (!edn_err_is_ok(err)) { 
     printf("VM ERROR - dumping registers...\n");
     for (usize i = 0; i < arraylen(edn_reg_t, vm->registers); i++) {
-      printf("r%i = i(%i) f(%d) s(%s)\n", i, vm->registers[i].data.i, vm->registers[i].data.f, vm->registers[i].data.s);
+      char buf[256];
+      edn_term_to_str(&(vm->registers[i]), buf, 256);
+      printf("r%i = %s\n", i, buf);
     }
   }
   

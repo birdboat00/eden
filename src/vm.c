@@ -28,12 +28,14 @@ edn_err_t edn_vm_interpret(edn_vm_t* vm, edn_pack_t* pack) {
   if (stack_top_ip + n >= stack_top_fn.bytecodelen) { printf("end of bytecode reached (%i)\n", stack_top_ip + n); return edn_make_err(kErrModVm, kErrNone);}\
   goto *dispatch_table[stack_top_fn.bytecode[stack_top_ip += n]]
 #define op_argn(n) stack_top_fn.bytecode[stack_top_ip + n]
+#define reg_argn(n) (vm->registers[op_argn(n)])
 
-#define artih_instruction(mathop) const bool isfloat = vm->registers[op_argn(2)].type == floating || vm->registers[op_argn(3)].type == floating;\
+/*#define artih_instruction(mathop) const bool isfloat = vm->registers[op_argn(2)].type == floating || vm->registers[op_argn(3)].type == floating;\
         vm->registers[op_argn(1)].type = isfloat ? floating : integer;\
         if (isfloat) vm->registers[op_argn(1)].data.f = vm->registers[op_argn(2)].data.f mathop vm->registers[op_argn(3)].data.f;\
         else vm->registers[op_argn(1)].data.i = vm->registers[op_argn(2)].data.i mathop vm->registers[op_argn(3)].data.i;\
-        dispatch(4);
+        dispatch(4);*/
+#define artih_instruction(mathop) printf("math op '%s' not implemented.\n", #mathop)
 
   vm->callstack_top = 0;
   vm->callstack[vm->callstack_top] = (edn_callstack_entry_t) {
@@ -51,20 +53,17 @@ edn_err_t edn_vm_interpret(edn_vm_t* vm, edn_pack_t* pack) {
       }
     do_oint:
       {
-        vm->registers[op_argn(1)].data.i = vm->pack->integers[op_argn(2)];
-        vm->registers[op_argn(1)].type = integer;
+        vm->registers[op_argn(1)] = edn_term_from_i32(vm->pack->integers[op_argn(2)]);
         dispatch(3);
       }
     do_oflt:
       {
-  	    vm->registers[op_argn(1)].data.f = vm->pack->floats[op_argn(2)];
-        vm->registers[op_argn(1)].type = floating; 
+  	    vm->registers[op_argn(1)] = edn_term_from_f64(vm->pack->floats[op_argn(2)]);
         dispatch(3);
       }
     do_ostr:
       {
-        vm->registers[op_argn(1)].data.s = vm->pack->strings[op_argn(2)];
-        vm->registers[op_argn(1)].type = string;
+        vm->registers[op_argn(1)] = edn_term_from_str(vm->pack->strings[op_argn(2)]);
         dispatch(3);
       }
     do_oadd: { artih_instruction(+); }
@@ -72,15 +71,13 @@ edn_err_t edn_vm_interpret(edn_vm_t* vm, edn_pack_t* pack) {
     do_omul: { artih_instruction(*); }
     do_odiv: { artih_instruction(/); }
     do_oneg: {
-      vm->registers[op_argn(1)].type = vm->registers[op_argn(2)].type;
-      if (vm->registers[op_argn(2)].type == floating) {
-        vm->registers[op_argn(1)].data.f = -vm->registers[op_argn(2)].data.f;
-      } else if (vm->registers[op_argn(2)].type == integer) {
-        vm->registers[op_argn(1)].data.i = -vm->registers[op_argn(2)].data.i;
+      if (edn_term_is_intnum(&reg_argn(2))) {
+        reg_argn(1) = edn_term_from_i32(-edn_term_get_intnum(&reg_argn(2)));
+      } else if (edn_term_is_floatnum(&reg_argn(2))) {
+        reg_argn(1) = edn_term_from_f64(-edn_term_get_floatnum(&reg_argn(2)));
       } else {
         return edn_make_err(kErrModVm, kErrInvalidPack);
       }
-
       dispatch(3); // opcode + dest + src
     }
     do_ocall:
@@ -97,7 +94,9 @@ edn_err_t edn_vm_interpret(edn_vm_t* vm, edn_pack_t* pack) {
       {
         const u32 arity = op_argn(1);
         const edn_op_t op = (edn_op_t) { .arg1 = op_argn(1), .arg2 = op_argn(2), .arg3 = op_argn(3), .arg4 = op_argn(4), .arg5 = op_argn(5), .opcode = op_argn(0) };
-        const edn_err_t err = edn_bif_dispatch_bif(vm, op_argn(2), &op);
+        edn_term_t result;
+        const edn_err_t err = edn_bif_dispatch_bif(vm, op_argn(2), &op, &result);
+        vm->registers[0] = result;
         if (!edn_err_is_ok(err)) return err;
         dispatch(2 + arity);
       }

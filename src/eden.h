@@ -159,7 +159,7 @@ typedef struct edn_vm {
   u16 callstack_top;
   edn_callstack_entry_t callstack[EDEN_VM_CALLSTACK_SIZE];
   
-  edn_reg_t registers[64];
+  edn_term_t registers[64];
 } edn_vm_t;
 typedef struct edn_process_ctx {
   edn_reg_t regs[64];
@@ -171,6 +171,6 @@ edn_vm_t* edn_make_vm(edn_pack_t* pack, const edn_vm_params_t params);
 edn_err_t edn_run_vm(edn_vm_t* vm);
 
 // Module: bif
-edn_err_t edn_bif_dispatch_bif(edn_vm_t* vm, u32 bifid, const edn_op_t* op);
+edn_err_t edn_bif_dispatch_bif(edn_vm_t* vm, u32 bifid, const edn_op_t* op, edn_term_t* result);
 
 #endif
