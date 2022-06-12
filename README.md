@@ -10,7 +10,10 @@ Required for building:
 
 ### Step-by-Step Build Instructions
 ```
-$ make
+$ mkdir build
+$ cd build
+~/build $ cmake ..
+~/build $ cmake --build .
 ```
 
 ## Project status
