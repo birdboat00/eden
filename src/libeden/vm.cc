@@ -38,6 +38,17 @@ namespace edn::vm {
     return 0;
   }
 
+  usize do_tailcall(vm& vm, const bc::op& op) {
+    const auto arity = op.args[0];
+    const auto fnid = op.args[1];
+
+    vm.callstack.top() = callstackentry {
+      .fnid = static_cast<u32>(fnid), .ip = 0
+    };
+
+    return 0;
+  }
+
   usize do_bifcall(vm& vm, const bc::op& op) {
     const auto arity = op.args[0];
     term::term result;
@@ -62,7 +73,7 @@ namespace edn::vm {
     static std::array<ophandler, static_cast<usize>(bc::opcode::opcodecount)> table = {
       &do_move, &do_lint, &do_lflt, &do_lstr,
       &op_unimplemented, &op_unimplemented, &op_unimplemented, &op_unimplemented, &op_unimplemented,
-      &do_call, &do_bifcall, &do_ret
+      &do_call, &do_tailcall, &do_bifcall, &do_ret
     };
 
     vm.callstack.push(callstackentry {

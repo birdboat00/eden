@@ -1,0 +1,1 @@
+set(EDEN_BASE_VERSION "22w23a")

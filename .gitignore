@@ -3,5 +3,5 @@
 *.exe
 *.a
 .vscode
-dump.txt
 build
+bin

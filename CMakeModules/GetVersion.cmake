@@ -1,0 +1,14 @@
+include(${CMAKE_SOURCE_DIR}/version.cmake)
+
+set(EDEN_GIT_REV "<unknown>")
+execute_process(
+  COMMAND git rev-parse --short HEAD
+  WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+  OUTPUT_VARIABLE EDEN_GIT_REV
+  OUTPUT_STRIP_TRAILING_WHITESPACE
+)
+if (NOT EDEN_GIT_REV STREQUAL "")
+  set (EDEN_VERSION "${EDEN_BASE_VERSION}+git.${EDEN_GIT_REV}")
+else()
+  set (EDEN_VERSION ${EDEN_BASE_VERSION})
+endif()

@@ -75,7 +75,7 @@ namespace edn::bc {
 
   enum class opcode {
     move, lint, lflt, lstr, add, sub, mul, div, neg,
-    call, bifcall, ret, opcodecount
+    call, tailcall, bifcall, ret, opcodecount
   };
 
   struct op {
