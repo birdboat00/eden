@@ -1,12 +1,12 @@
 # eden
 
-eden is a minimalist bytecode virtual machine written in C.
+eden is a minimalist bytecode virtual machine written in C++.
 
 ## Getting started
 ### Dependencies
 Required for building:
-- Make
-- C compiler for C11 or higher
+- CMake 3.23 or higher
+- C++ compiler with support for C++20 or higher
 
 ### Step-by-Step Build Instructions
 ```
