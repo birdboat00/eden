@@ -22,7 +22,7 @@ namespace edn {
   template<typename T>
   using sptr = std::shared_ptr<T>;
 
-  const str kEdenVersion = "22w23a";
+  const str kEdenVersion = "22w24a";
   const u16 kEdenBytecodeVersion = 0x0001;
   #define EDEN_BUILD_TIME __TIME__ " on " __DATE__
   const str kEdenBuildTime = EDEN_BUILD_TIME; 
