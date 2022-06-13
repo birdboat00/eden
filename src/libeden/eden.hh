@@ -1,7 +1,9 @@
 #pragma once
 
 #include <cstdint>
+#include <functional>
 #include <memory>
+#include <stack>
 #include <string>
 #include <variant>
 #include <vector>
@@ -107,7 +109,22 @@ namespace edn::pack {
 }
 
 namespace edn::vm {
+  struct callstackentry {
+    u32 fnid;
+    usize ip;
+  };
+  struct vm {
+    pack::pack& pack;
+    std::stack<callstackentry> callstack;
+    term::term regs[64];
+  };
+  err::err run(vm& vm);
 }
 
 namespace edn::bif {
+  err::err dispatch(vm::vm& vm, u32 bifid, const bc::op& op, term::term& result);
+}
+
+namespace edn::btp {
+  pack::pack create_test_pack();
 }

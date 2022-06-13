@@ -27,8 +27,8 @@ namespace edn::bc {
       case opcode::add: case opcode::sub: case opcode::mul: case opcode::div: return 3;
       case opcode::move: case opcode::lint: case opcode::lflt: case opcode::lstr: return 2;
       case opcode::call: case opcode::bifcall: return 1 + next;
-      case opcode::ret: 1;
-      default: 0;
+      case opcode::ret: return 1;
+      default: return 0;
     }
     // unreachable
   }

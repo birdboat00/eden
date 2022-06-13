@@ -7,12 +7,15 @@ namespace edn::term {
     std::stringstream stream;
     if (is<i64>(term)) {
       stream << get<i64>(term);
+      buf = stream.str();
       return err::make_err_none(err::err_module::term);
     } else if (is<f64>(term)) {
       stream << get<f64>(term);
+      buf = stream.str();
       return err::make_err_none(err::err_module::term);
     } else if (is<str>(term)) {
       stream << get<str>(term);
+      buf = stream.str();
       return err::make_err_none(err::err_module::term);
     }
 

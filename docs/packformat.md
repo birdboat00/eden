@@ -35,3 +35,58 @@ A table looks like this:
   - functions array: see [function table](#function-table)
 
 ### Function table
+
+# New Pack Format
+eDeNPACK (bytes)
+pack-version (u16)
+nodes (list)
+
+## Encoding
+Everything is encoded in little-endian byteorder.
+### Primitives
+Primitives are encoded in their bytes.
+### Strings
+Strings are encoded by a usize for their length followed by their byte data. They are not null-terminated. Length is determined by the length part.
+
+## Nodes
+|Length in bytes|Type  |Description  |
+|---------------|------|-------------|
+|1              |u8    |Type of Entry|
+|4              |u32   |ID of Entry  |
+|var            |str   |Name of Entry|
+
+### packinfo (0x00)
+|Length in bytes|Type  |Description     |
+|---------------|------|----------------|
+|2              |u16   |bytecode-version|
+|var            |str   |pack name       |
+
+### inttable (0x01)
+|Length in bytes|Type  |Description  |
+|---------------|------|-------------|
+|8              |usize |table entries|
+|table-entries  |i64   |integers     |
+
+### flttable (0x02)
+|Length in bytes|Type  |Description  |
+|---------------|------|-------------|
+|8              |usize |table entries|
+|table-entries  |f64   |floats       |
+
+### strtable (0x03)
+|Length in bytes|Type  |Description  |
+|---------------|------|-------------|
+|8              |usize |table entries|
+|table-entries  |str   |strings      |
+
+### fnstable (0x04)
+|Length in bytes|Type  |Description  |
+|---------------|------|-------------|
+|8              |usize |table entries|
+|table-entries  |u32   |fn entry id  |
+
+### fn (0x05)
+|Length in bytes|Type  |Description  |
+|---------------|------|-------------|
+|var            |str   |fn name      |
+|8              |usize |bytecode len |

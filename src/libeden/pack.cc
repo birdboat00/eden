@@ -19,7 +19,8 @@ DEF_RW_FOR(usize);
 DEF_RW_FOR(f64);
 
   void write_string(std::ostream& s, const str& str) {
-
+    write_usize(s, str.size());
+    s.write(&str.c_str()[0], str.size());
   }
 
   err::err write_header(std::ostream& s, const pack& pack) {
@@ -88,6 +89,15 @@ DEF_RW_FOR(f64);
 
     err = write_table_ints(file, pack);
     if (!err::is_ok(err)) return err;
+
+    err = write_table_flts(file, pack);
+    if (!err::is_ok(err)) return err;
+
+    err = write_table_strs(file, pack);
+    if (!err::is_ok(err)) return err;
+
+    err = write_table_fns(file, pack);
+    return err;
   }
 
   str read_string(std::istream& file) {
