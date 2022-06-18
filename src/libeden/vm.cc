@@ -6,7 +6,7 @@
 namespace edn::vm {
 
   usize do_move(vm& vm, const bc::op& op) {
-    vm.regs[op.args[0]] = vm.regs[op.args[1]];
+    vm.regs.at(op.args.at(0)) = vm.regs.at(op.args.at(1));
     return bc::opcode_arity(op.opcode, op.args[0]) + 1;
   }
 
@@ -39,7 +39,6 @@ namespace edn::vm {
   }
 
   usize do_tailcall(vm& vm, const bc::op& op) {
-    const auto arity = op.args[0];
     const auto fnid = op.args[1];
 
     vm.callstack.top() = callstackentry {
@@ -49,20 +48,83 @@ namespace edn::vm {
     return 0;
   }
 
-  usize do_bifcall(vm& vm, const bc::op& op) {
+  usize do_nifcallnamed(vm& vm, const bc::op& op) {
     const auto arity = op.args[0];
-    term::term result;
-    const auto err = bif::dispatch(vm, op.args[1], op, vm.regs[0]);
-    if (!err::is_ok(err)) throw std::runtime_error(err::to_str(err));
-    return 2 + arity;
+    const auto bifname = vm.pack.strs.at(op.args[1]);
+    if (!vm.nifs.contains(bifname)) {
+      throw std::runtime_error(err::to_str(err::make_err(err::kind::bifnotfound, err::err_module::vm)));
+    }
+    vm.nifs.at(bifname)(vm, op, vm.regs[0]);
+    return 2 + arity; // opcode + arity + <args>
   }
 
-  usize do_ret(vm& vm, const bc::op& op) {
+  usize do_ret(vm& vm, const bc::op& _op) {
     vm.callstack.pop();
     return 0;
   }
 
-  usize op_unimplemented(vm& vm, const bc::op& op) {
+  usize do_test_isint(vm& vm, const bc::op& op) {
+    const auto is = term::is<i64>(vm.regs.at(op.args.at(1)));
+    std::cout << "test_isint " << is << " (" << term::to_str(vm.regs.at(op.args.at(1))).value() << ")" << std::endl;
+    if (is) vm.callstack.top().ip = vm.pack.fns.at(vm.callstack.top().fnid).labels.at(op.args.at(0));
+    return is ? 0 : 3;
+  }
+
+  usize do_test_isflt(vm& vm, const bc::op& op) {
+    const auto is = term::is<f64>(vm.regs.at(op.args.at(1)));
+    if (is) vm.callstack.top().ip = vm.pack.fns.at(vm.callstack.top().fnid).labels.at(op.args.at(0));
+    return is ? 0 : 3;
+  }
+  
+  usize do_test_isstr(vm& vm, const bc::op& op) {
+    const auto is = term::is<str>(vm.regs.at(op.args.at(1)));
+    std::cout << "test_isstr " << is << " (" << term::to_str(vm.regs.at(op.args.at(1))).value() << ")" << std::endl;
+    if (is) vm.callstack.top().ip = vm.pack.fns.at(vm.callstack.top().fnid).labels.at(op.args.at(0));
+    return is ? 0 : 3;
+  }
+
+  usize do_cmp_islt(vm& vm, const bc::op& op) {
+    const auto lhs = vm.regs.at(op.args.at(1));
+    const auto rhs = vm.regs.at(op.args.at(2));
+    const auto is = lhs.val < rhs.val;
+    if (is) vm.callstack.top().ip = vm.pack.fns.at(vm.callstack.top().fnid).labels.at(op.args.at(0));
+    return is ? 0 : 4;
+  }
+
+  usize do_cmp_isge(vm& vm, const bc::op& op) {
+    const auto lhs = vm.regs.at(op.args.at(1));
+    const auto rhs = vm.regs.at(op.args.at(2));
+    const auto is = lhs.val >= rhs.val;
+    if (is) vm.callstack.top().ip = vm.pack.fns.at(vm.callstack.top().fnid).labels.at(op.args.at(0));
+    return is ? 0 : 4;
+  }
+
+  usize do_cmp_iseq(vm& vm, const bc::op& op) {
+    const auto lhs = vm.regs.at(op.args.at(1));
+    const auto rhs = vm.regs.at(op.args.at(2));
+    const auto is = lhs.val == rhs.val;
+    if (is) vm.callstack.top().ip = vm.pack.fns.at(vm.callstack.top().fnid).labels.at(op.args.at(0));
+    return is ? 0 : 4;
+  }
+
+  usize do_cmp_isne(vm& vm, const bc::op& op) {
+    const auto lhs = vm.regs.at(op.args.at(1));
+    const auto rhs = vm.regs.at(op.args.at(2));
+    const auto is = lhs.val != rhs.val;
+    if (is) vm.callstack.top().ip = vm.pack.fns.at(vm.callstack.top().fnid).labels.at(op.args.at(0));
+    return is ? 0 : 4;
+  }
+
+  usize do_jump(vm& vm, const bc::op& op) {
+    vm.callstack.top().ip = vm.pack.fns.at(vm.callstack.top().fnid).labels.at(op.args.at(0));
+    return 0;
+  }
+
+  usize do_label(vm& vm, const bc::op& op) {
+    return 2;
+  }
+
+  usize op_unimplemented(vm& _vm, const bc::op& op) {
     std::cout << "vm - op not implemented. (" << bc::op_to_str(op) << ")." <<  std::endl;
     return 0;
   }
@@ -70,10 +132,14 @@ namespace edn::vm {
   err::err run(vm& vm) {
     using ophandler = std::function<usize(struct vm&, const bc::op& op)>;
 
-    static std::array<ophandler, static_cast<usize>(bc::opcode::opcodecount)> table = {
-      &do_move, &do_lint, &do_lflt, &do_lstr,
-      &op_unimplemented, &op_unimplemented, &op_unimplemented, &op_unimplemented, &op_unimplemented,
-      &do_call, &do_tailcall, &do_bifcall, &do_ret
+    static const std::array<ophandler, static_cast<usize>(bc::opcode::opcodecount)> table = {
+      &do_move, &do_lint, &do_lflt, &do_lstr, &op_unimplemented /*lfun*/,
+      &op_unimplemented /*add*/, &op_unimplemented /*sub*/, &op_unimplemented/*mul*/, &op_unimplemented/*div*/, &op_unimplemented/*neg*/,
+      &do_call, &do_tailcall, &op_unimplemented /*bifcall*/, &do_ret, &do_nifcallnamed,
+      &do_test_isint, &do_test_isflt, &do_test_isstr, &op_unimplemented /*test_isfun*/,
+      &do_cmp_islt, &do_cmp_isge, &do_cmp_iseq, &do_cmp_isne,
+      &do_jump,
+      &do_label
     };
 
     vm.callstack.push(callstackentry {
@@ -107,5 +173,9 @@ namespace edn::vm {
     };
 
     return dispatch(0);
+  }
+
+  void register_nif(vm& vm, cref<str> name, niffn impl) {
+    vm.nifs.insert_or_assign(name, impl);
   }
 }

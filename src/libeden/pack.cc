@@ -20,11 +20,11 @@ DEF_RW_FOR(f64);
 
   void write_string(std::ostream& s, const str& str) {
     write_usize(s, str.size());
-    s.write(&str.c_str()[0], str.size());
+    s.write(str.data(), str.size());
   }
 
   err::err write_header(std::ostream& s, const pack& pack) {
-    s.write(&kEdenPackMagic.c_str()[0], kEdenPackMagic.length());
+    s.write(kEdenPackMagic.data(), kEdenPackMagic.length());
 
     write_u16(s, pack.bytecode_version);
     write_string(s, pack.name);
@@ -43,7 +43,7 @@ DEF_RW_FOR(f64);
   err::err write_table_ints(std::ostream& s, const pack& pack) {
     if (pack.ints.size() > 0) {
       write_u32(s, pack.ints.size());
-      for(auto i = 0; i < pack.ints.size(); i++) {
+      for(usize i = 0; i < pack.ints.size(); i++) {
         write_i64(s, pack.ints.at(i));
       }
     }
@@ -53,7 +53,7 @@ DEF_RW_FOR(f64);
   err::err write_table_flts(std::ostream& s, const pack& pack) {
     if (pack.flts.size() > 0) {
       write_u32(s, pack.flts.size());
-      for(auto i = 0; i < pack.flts.size(); i++) {
+      for(usize i = 0; i < pack.flts.size(); i++) {
         write_f64(s, pack.flts.at(i));
       }
     }
@@ -63,7 +63,7 @@ DEF_RW_FOR(f64);
   err::err write_table_strs(std::ostream& s, const pack& pack) {
     if (pack.strs.size() > 0) {
       write_u32(s, pack.strs.size());
-      for(auto i = 0; i < pack.strs.size(); i++) {
+      for(usize i = 0; i < pack.strs.size(); i++) {
         write_string(s, pack.strs.at(i));
       }
     }
@@ -73,9 +73,9 @@ DEF_RW_FOR(f64);
   err::err write_table_fns(std::ostream& s, const pack& pack) {
     if (pack.fns.size() > 0) {
       write_u32(s, pack.fns.size());
-      for(auto i = 0; i < pack.fns.size(); i++) {
+      for(usize i = 0; i < pack.fns.size(); i++) {
         write_usize(s, pack.fns.at(i).bytecode.size());
-        for (auto j = 0; j < pack.fns.at(i).bytecode.size(); j++) {
+        for (usize j = 0; j < pack.fns.at(i).bytecode.size(); j++) {
           write_i32(s, pack.fns.at(i).bytecode.at(j));
         }
       }
@@ -102,9 +102,8 @@ DEF_RW_FOR(f64);
 
   str read_string(std::istream& file) {
     const auto len = read_usize(file);
-    char buf[len + 1];
-    buf[len] = '\0';
-    file.read(&buf[0], len);
+    str buf(len, '\0');
+    file.read(buf.data(), len);
     return str(buf);
   }
 
@@ -142,24 +141,36 @@ DEF_RW_FOR(f64);
         outtable.at(i).bytecode.push_back(read_i32(s));
       }
     }
+
+    for (usize f = 0; f < outtable.size(); f++) {
+      auto fn = outtable.at(f);
+      for (usize a = 0; a < fn.bytecode.size(); a++) {
+        const auto opcode = static_cast<bc::opcode>(fn.bytecode.at(a));
+        const auto next = (a + 1 < fn.bytecode.size()) ? fn.bytecode.at(a + 1) : 0;
+        const auto arity = bc::opcode_arity(opcode, next);
+
+        if (opcode == bc::opcode::label) {
+          outtable.at(f).labels.insert_or_assign(next, a + 2);
+        }
+
+        f += arity;
+      }
+    }
     return err::make_err_none(err::err_module::pack);
   }
 
   err::err read_from_file(std::istream& file, pack& pack) {
-    std::cout << "kEdenPackMagic len is " << kEdenPackMagic.length() << std::endl;
-    char magic_buf[kEdenPackMagic.length() + 1];
-    file.read(&magic_buf[0], kEdenPackMagic.length());
-    magic_buf[kEdenPackMagic.length()] = '\0';
-    str magic = magic_buf;
+    str magic(kEdenPackMagic.length(), '\0');
+    file.read(magic.data(), kEdenPackMagic.length());
     if (magic.compare(kEdenPackMagic) != 0) {
       std::cout << "file is not a pack file. magic is " << magic << " len " << magic.length() << std::endl;
-      return err::make_err(err::err_kind::invalidpack, err::err_module::pack);
+      return err::make_err(err::kind::invalidpack, err::err_module::pack);
     }
 
     pack.bytecode_version = read_u16(file);
     if (pack.bytecode_version != kEdenBytecodeVersion) {
       std::cout << "pack target version (" << pack.bytecode_version << ") is different from eden vm bytecode version (" << kEdenBytecodeVersion << ")." << std::endl;
-      return err::make_err(err::err_kind::invalidpack, err::err_module::pack);
+      return err::make_err(err::kind::invalidpack, err::err_module::pack);
     }
 
     pack.name = read_string(file);
@@ -167,22 +178,18 @@ DEF_RW_FOR(f64);
 
     const auto tables = std::bitset<8>(read_u8(file));
     if (tables.test(0)) {
-      std::cout << "has integer table" << std::endl;
       const auto err = read_table_ints(file, pack.ints);
       if (!err::is_ok(err)) return err;
     }
     if (tables.test(1)) {
-      std::cout << "has float table" << std::endl;
       const auto err = read_table_flts(file, pack.flts);
       if (!err::is_ok(err)) return err;
     }
     if (tables.test(2)) {
-      std::cout << "has strings table" << std::endl;
       const auto err = read_table_strs(file, pack.strs);
       if (!err::is_ok(err)) return err;
     }
     if (tables.test(3)) {
-      std::cout << "has functions table" << std::endl;
       const auto err = read_table_fns(file, pack.fns);
       if (!err::is_ok(err)) return err;
     }
@@ -191,6 +198,7 @@ DEF_RW_FOR(f64);
   }
 
   err::err dump_to_file(std::ostream& file, const pack& pack) {
+    file << "eden runtime " << kEdenVersion << " [bytecode: " << kEdenBytecodeVersion << "] (compiled: " << kEdenBuildTime << ")\n";
     file << "--- BEGIN PACK DUMP ---\n";
     file << "pack\n  name->" << pack.name << "\n  bytecodeversion-> " << pack.bytecode_version << "\n  entryfn-> " << pack.entryfn << "\n";
     

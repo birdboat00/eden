@@ -3,23 +3,20 @@
 #include <sstream>
 
 namespace edn::term {
-  err::err to_str(const term& term, str& buf) {
+  res<str> to_str(const term& term) noexcept {
     std::stringstream stream;
     if (is<i64>(term)) {
       stream << get<i64>(term);
-      buf = stream.str();
-      return err::make_err_none(err::err_module::term);
+      return stream.str();
     } else if (is<f64>(term)) {
       stream << get<f64>(term);
-      buf = stream.str();
-      return err::make_err_none(err::err_module::term);
+      return stream.str();
     } else if (is<str>(term)) {
       stream << get<str>(term);
-      buf = stream.str();
-      return err::make_err_none(err::err_module::term);
+      return stream.str();
     }
 
-    return err::make_err(err::err_kind::termnotprintable, err::err_module::term);
+    return cpp::fail(err::kind::termnotprintable);
   }
 
   term numf_to_numi(const term& term) {

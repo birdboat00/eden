@@ -3,29 +3,34 @@
 namespace edn::btp {
   #define r(n) n
   #define c(c) c
-  #define i(i) i
-  #define op(o) static_cast<bc::bc_t>(edn::bc::opcode::o)
+  #define i(table, i) i
+  #define l(l) l
+  
+  constexpr auto op(bc::opcode o) -> bc::bc_t { return static_cast<bc::bc_t>(o); }
 
   pack::pack create_test_pack() {
     static const auto fn_main = edn::pack::edn_fn {
       .bytecode = {
-        op(lstr), r(0), i(0),
-        op(lstr), r(1), i(1),
-        op(lstr), r(2), i(2),
-        op(call), 1, 0x01,
-        op(move), r(0), r(1),
-        op(call), 1, 0x01,
-        op(move), r(0), r(2),
-        op(call), 1, 0x01
+        op(bc::opcode::label), l(0),
+        op(bc::opcode::lstr), r(0), i(strs, 0),
+        op(bc::opcode::lstr), r(1), i(strs, 1),
+        op(bc::opcode::lstr), r(2), i(strs, 2),
+        op(bc::opcode::call), 1, i(fns, 1),
+        op(bc::opcode::move), r(0), r(1),
+        op(bc::opcode::call), 1, i(fns, 1),
+        op(bc::opcode::move), r(0), r(2),
+        op(bc::opcode::call), 1, i(fns, 1),
+
+        op(bc::opcode::test_isstr), l(0), r(0)
       }
     };
 
     static const auto fn_putStrLn = edn::pack::edn_fn {
       .bytecode = {
-        op(bifcall), 2, 0x01, r(0),
-        op(lstr), r(4), i(3),
-        op(bifcall), 2, 0x01, r(4),
-        op(ret)
+        op(bc::opcode::nifcallnamed), 2, i(strs, 4), r(0),
+        op(bc::opcode::lstr), r(4), i(strs, 3),
+        op(bc::opcode::nifcallnamed), 2, i(strs, 4), r(4),
+        op(bc::opcode::ret)
       }
     };
 
@@ -35,7 +40,7 @@ namespace edn::btp {
       .entryfn = 0,
       .ints = { 10, 20, 40 },
       .flts = { -1.2, 1.0, 10.23 },
-      .strs = { "alpha", "beta", "gamma", "\n" },
+      .strs = { "alpha", "beta", "gamma", "\n", "edn_bif_printreg/1", "edn_bif_getpackname/0" },
       .fns = { fn_main, fn_putStrLn }
     };
   }

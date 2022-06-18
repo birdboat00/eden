@@ -1,12 +1,16 @@
 #pragma once
 
+#include <array>
 #include <cstdint>
 #include <functional>
 #include <memory>
 #include <stack>
 #include <string>
+#include <unordered_map>
 #include <variant>
 #include <vector>
+
+#include "result.hh"
 
 namespace edn {
   using u8 = std::uint8_t;
@@ -21,6 +25,10 @@ namespace edn {
   using str = std::string;
   template<typename T>
   using sptr = std::shared_ptr<T>;
+  template<typename T>
+  using ref = T&;
+  template<typename T>
+  using cref = const T&;
 
   const str kEdenVersion = "22w24a";
   const u16 kEdenBytecodeVersion = 0x0001;
@@ -31,13 +39,14 @@ namespace edn {
 }
 
 namespace edn::err {
-  enum class err_kind {
+  enum class kind {
     none,
     invalidpack,
     invalidfile,
     mallocfail,
     termnotprintable,
-    bifnotfound
+    bifnotfound,
+    bifinvalidargs
   };
 
   enum class err_module {
@@ -45,21 +54,26 @@ namespace edn::err {
   };
 
   struct err {
-    err_kind kind;
+    kind kind;
     err_module mod;
   };
 
-  inline err make_err(err_kind kind, err_module mod) { return err { .kind = kind, .mod = mod }; }
-  inline err make_err_none(err_module mod) { return make_err(err_kind::none, mod); }
+  inline err make_err(kind kind, err_module mod) { return err { .kind = kind, .mod = mod }; }
+  inline err make_err_none(err_module mod) { return make_err(kind::none, mod); }
 
   str to_str(const err& err);
-  inline bool is_ok(const err& err) { return err.kind == err_kind::none; }
+  inline bool is_ok(const err& err) { return err.kind == kind::none; }
+}
+
+namespace edn {
+  template<typename T>
+  using res = cpp::result<T, err::kind>;
 }
 
 namespace edn::term {
   struct term { std::variant<i64, f64, str> val; };
 
-  err::err to_str(const term& term, str& buf);
+  res<str> to_str(const term& term) noexcept;
   term numf_to_numi(const term& term);
   term numi_to_numf(const term& term);
   template<typename Kind>
@@ -74,13 +88,18 @@ namespace edn::bc {
   using bc_t = i32;
 
   enum class opcode {
-    move, lint, lflt, lstr, add, sub, mul, div, neg,
-    call, tailcall, bifcall, ret, opcodecount
+    move, lint, lflt, lstr, lfun, add, sub, mul, div, neg,
+    call, tailcall, bifcall, ret, nifcallnamed, 
+    test_isint, test_isflt, test_isstr, test_isfun,
+    cmp_islt, cmp_isge, cmp_iseq, cmp_isne,
+    jump,
+    label,
+    opcodecount
   };
 
   struct op {
     opcode opcode;
-    bc_t args[5];
+    std::array<bc_t, 5> args;
   };
 
   str opcode_to_str(const opcode opcode);
@@ -91,6 +110,7 @@ namespace edn::bc {
 namespace edn::pack {
   struct edn_fn {
     std::vector<bc::bc_t> bytecode;
+    std::unordered_map<u64, usize> labels;
   };
   struct pack {
     str name;
@@ -108,6 +128,11 @@ namespace edn::pack {
   err::err dump_to_file(std::ostream& file, const pack& pack);
 }
 
+namespace edn {
+  namespace vm { struct vm; }
+  using niffn = std::function<edn::err::err(edn::vm::vm&, const edn::bc::op&, edn::term::term&)>;
+}
+
 namespace edn::vm {
   struct callstackentry {
     u32 fnid;
@@ -116,13 +141,16 @@ namespace edn::vm {
   struct vm {
     pack::pack& pack;
     std::stack<callstackentry> callstack;
-    term::term regs[64];
+    std::array<term::term, 64> regs;
+
+    std::unordered_map<str, niffn> nifs;
   };
   err::err run(vm& vm);
+  void register_nif(vm& vm, cref<str> name, niffn impl);
 }
 
 namespace edn::bif {
-  err::err dispatch(vm::vm& vm, u32 bifid, const bc::op& op, term::term& result);
+  void register_bifs(vm::vm& vm);
 }
 
 namespace edn::btp {
