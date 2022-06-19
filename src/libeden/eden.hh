@@ -68,6 +68,8 @@ namespace edn::err {
 namespace edn {
   template<typename T>
   using res = cpp::result<T, err::kind>;
+  template<typename T>
+  using refres = cpp::result<T&, err::kind>;
 }
 
 namespace edn::term {
@@ -84,12 +86,14 @@ namespace edn::term {
   inline Kind get(const term& term) { return std::get<Kind>(term.val); }
 }
 
+namespace edn::pack { struct pack; }
+namespace edn::vm { struct vm; }
 namespace edn::bc {
   using bc_t = i32;
 
   enum class opcode {
-    move, lint, lflt, lstr, lfun, add, sub, mul, div, neg,
-    call, tailcall, bifcall, ret, nifcallnamed, 
+    move, lint, lflt, lstr, lfun,
+    call, tailcall, ret, nifcallnamed, 
     test_isint, test_isflt, test_isstr, test_isfun,
     cmp_islt, cmp_isge, cmp_iseq, cmp_isne,
     jump,
@@ -105,15 +109,23 @@ namespace edn::bc {
   str opcode_to_str(const opcode opcode);
   usize opcode_arity(const opcode opcode, bc_t next);
   str op_to_str(const op& op);
+
+  namespace check {
+    bool check(const vm::vm& vm, const pack::pack& pack);
+  }
 }
 
 namespace edn::pack {
   struct edn_fn {
     std::vector<bc::bc_t> bytecode;
     std::unordered_map<u64, usize> labels;
+    str name;
+    u8 arity;
   };
   struct pack {
     str name;
+    str author;
+    str version;
     u16 bytecode_version;
     u32 entryfn;
 

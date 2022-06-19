@@ -28,6 +28,8 @@ DEF_RW_FOR(f64);
 
     write_u16(s, pack.bytecode_version);
     write_string(s, pack.name);
+    write_string(s, pack.author);
+    write_string(s, pack.version);
     write_u32(s, pack.entryfn);
 
     std::bitset<8> tables(0);
@@ -74,6 +76,8 @@ DEF_RW_FOR(f64);
     if (pack.fns.size() > 0) {
       write_u32(s, pack.fns.size());
       for(usize i = 0; i < pack.fns.size(); i++) {
+        write_u8(s, pack.fns.at(i).arity);
+        write_string(s, pack.fns.at(i).name);
         write_usize(s, pack.fns.at(i).bytecode.size());
         for (usize j = 0; j < pack.fns.at(i).bytecode.size(); j++) {
           write_i32(s, pack.fns.at(i).bytecode.at(j));
@@ -135,6 +139,8 @@ DEF_RW_FOR(f64);
     const auto len = read_u32(s);
     for (usize i = 0; i < len; i++) {
       outtable.push_back(edn_fn {});
+      outtable.at(i).arity = read_u8(s);
+      outtable.at(i).name = read_string(s);
       const auto bclen = read_usize(s);
       outtable.at(i).bytecode.reserve(bclen);
       for (usize j = 0; j < bclen; j++) {
@@ -142,6 +148,7 @@ DEF_RW_FOR(f64);
       }
     }
 
+    // get label addresses
     for (usize f = 0; f < outtable.size(); f++) {
       auto fn = outtable.at(f);
       for (usize a = 0; a < fn.bytecode.size(); a++) {
@@ -156,6 +163,7 @@ DEF_RW_FOR(f64);
         f += arity;
       }
     }
+
     return err::make_err_none(err::err_module::pack);
   }
 
@@ -174,6 +182,8 @@ DEF_RW_FOR(f64);
     }
 
     pack.name = read_string(file);
+    pack.author = read_string(file);
+    pack.version = read_string(file);
     pack.entryfn = read_u32(file);
 
     const auto tables = std::bitset<8>(read_u8(file));
@@ -200,7 +210,11 @@ DEF_RW_FOR(f64);
   err::err dump_to_file(std::ostream& file, const pack& pack) {
     file << "eden runtime " << kEdenVersion << " [bytecode: " << kEdenBytecodeVersion << "] (compiled: " << kEdenBuildTime << ")\n";
     file << "--- BEGIN PACK DUMP ---\n";
-    file << "pack\n  name->" << pack.name << "\n  bytecodeversion-> " << pack.bytecode_version << "\n  entryfn-> " << pack.entryfn << "\n";
+    file << "pack\n  name-> " << pack.name
+    << "\n  author-> " << pack.author
+    << "\n  version-> " << pack.version
+    << "\n  bytecodeversion-> " << pack.bytecode_version
+    << "\n  entryfn-> " << pack.entryfn << "\n";
     
     file << "tables:\nints (" << std::size(pack.ints) << ")\n";
     usize ii = 0;
@@ -226,7 +240,7 @@ DEF_RW_FOR(f64);
     file << "functions (" << std::size(pack.fns) << ")\n";
     usize fni = 0;
     std::for_each(std::begin(pack.fns), std::end(pack.fns), [&](const edn_fn& fn) {
-      file << "  @" << fni << " -> (" << fn.bytecode.size() << ") {\n";
+      file << "  @" << fni << " -> '" << fn.name << "/" << static_cast<u64>(fn.arity) << "' (" << fn.bytecode.size() << ") {\n";
       for(usize i = 0; i < fn.bytecode.size(); i++) {
         const auto bclen = fn.bytecode.size();
         const auto opcode = bc::opcode_to_str(static_cast<bc::opcode>(fn.bytecode.at(i)));
@@ -246,6 +260,7 @@ DEF_RW_FOR(f64);
         i += arity;
       }
       file << "  }\n";
+      fni++;
     });
 
     file << "--- END PACK DUMP ---\n";

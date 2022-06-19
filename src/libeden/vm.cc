@@ -135,12 +135,15 @@ namespace edn::vm {
   }
 
   err::err run(vm& vm) {
+    if (!bc::check::check(vm, vm.pack)) {
+      return err::make_err(err::kind::invalidpack, err::err_module::vm);
+    }
+
     using ophandler = std::function<usize(struct vm&, const bc::op& op)>;
 
     static const std::array<ophandler, static_cast<usize>(bc::opcode::opcodecount)> table = {
       &do_move, &do_lint, &do_lflt, &do_lstr, &op_unimplemented /*lfun*/,
-      &op_unimplemented /*add*/, &op_unimplemented /*sub*/, &op_unimplemented/*mul*/, &op_unimplemented/*div*/, &op_unimplemented/*neg*/,
-      &do_call, &do_tailcall, &op_unimplemented /*bifcall*/, &do_ret, &do_nifcallnamed,
+      &do_call, &do_tailcall, &do_ret, &do_nifcallnamed,
       &do_test_isint, &do_test_isflt, &do_test_isstr, &op_unimplemented /*test_isfun*/,
       &do_cmp_islt, &do_cmp_isge, &do_cmp_iseq, &do_cmp_isne,
       &do_jump,

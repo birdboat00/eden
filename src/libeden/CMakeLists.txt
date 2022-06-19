@@ -3,6 +3,7 @@ project(libeden)
 
 set(SOURCE_FILES
   bc.cc
+  bccheck.cc
   bif.cc
   builtin_test_pack.cc
   err.cc

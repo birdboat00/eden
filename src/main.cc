@@ -92,7 +92,7 @@ auto main (int argc, char** argv) -> int {
   cxxopts::ParseResult result;
   try {
     result = options.parse(argc, argv);
-  } catch (cxxopts::option_not_exists_exception& e) {
+  } catch (cxxopts::OptionException& e) {
     std::cout << e.what() << std::endl;
     return -1;
   }
