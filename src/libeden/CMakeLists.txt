@@ -7,6 +7,7 @@ set(SOURCE_FILES
   bif.cc
   builtin_test_pack.cc
   err.cc
+  nif.cc
   pack.cc
   term.cc
   vm.cc

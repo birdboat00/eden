@@ -6,9 +6,14 @@
 #include <memory>
 #include <stack>
 #include <string>
+#include <string_view>
 #include <unordered_map>
 #include <variant>
 #include <vector>
+
+#ifdef _WIN32
+#include <windows.h>
+#endif
 
 #include "result.hh"
 
@@ -23,6 +28,7 @@ namespace edn {
   using f32 = float;
   using f64 = double;
   using str = std::string;
+  using strref = std::string_view;
   template<typename T>
   using sptr = std::shared_ptr<T>;
   template<typename T>
@@ -36,6 +42,36 @@ namespace edn {
   const str kEdenBuildTime = EDEN_BUILD_TIME; 
   #undef EDEN_BUILD_TIME
   const str kEdenPackMagic = "eDeNPACK";
+
+  #define panic(fmt, ...)\
+    do {\
+      (void) fprintf(stderr, "\n\n\n*** (panic) *** [%s:%d]: " fmt "\n\n\n",\
+              __FILE__, __LINE__, ##__VA_ARGS__);\
+            exit(1);\
+    } while(false)
+
+  /**
+   * Indicates unreachable code by panicking with a message of 
+   * "entered unreachable code".
+   */
+  #define unreachable() panic("entered unreachable code")
+  /**
+   * Indicates unfinished code by panicking with a message of
+   * "not yet implemented".
+   */
+  #define todo() panic("not yet implemented")
+  /**
+   * Indicated unimplemented code by panicking with a message of
+   * "not implemented".
+   */
+  #define unimplemented() panic("not implemented")
+  #define obsolete(msg) [[deprecated(msg)]]
+
+  #define EDN_NIF_INIT_FN(initfn) extern "C" __cdecl int edn_nif_init(void* vm) {\
+    if (vm == NULL) { printf("EDN_NIF_INIT_FN: argument vm is null\n"); return 1; }\
+    return initfn(vm);\
+  }
+  #define EDN_NIF_DECL(name) edn::res<edn::term::term> name(edn::vm::vm& vm, const edn::bc::op& op)
 }
 
 namespace edn::err {
@@ -49,16 +85,20 @@ namespace edn::err {
     bifinvalidargs
   };
 
+  [[deprecated("use res<T> instead")]]
   enum class err_module {
     bif, btp, err, main, op, pack, term, vm
   };
 
+  [[deprecated("use res<T> instead")]]
   struct err {
     kind kind;
     err_module mod;
   };
 
+  [[deprecated("use res<T> instead")]]
   inline err make_err(kind kind, err_module mod) { return err { .kind = kind, .mod = mod }; }
+  [[deprecated("use res<T> instead")]]
   inline err make_err_none(err_module mod) { return make_err(kind::none, mod); }
 
   str to_str(const err& err);
@@ -129,6 +169,7 @@ namespace edn::pack {
     u16 bytecode_version;
     u32 entryfn;
 
+    std::vector<str> naps;
     std::vector<i64> ints;
     std::vector<f64> flts;
     std::vector<str> strs;
@@ -163,6 +204,18 @@ namespace edn::vm {
 
 namespace edn::bif {
   void register_bifs(vm::vm& vm);
+}
+
+namespace edn::nif {
+  struct niflib {
+    #ifdef _WIN32
+    HMODULE hmodlib;
+    #endif
+
+    ~niflib();
+  };
+
+  res<sptr<niflib>> load(const str& filename, vm::vm& vm);
 }
 
 namespace edn::btp {

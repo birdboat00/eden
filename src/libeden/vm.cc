@@ -130,7 +130,7 @@ namespace edn::vm {
   }
 
   usize op_unimplemented(vm& _vm, const bc::op& op) {
-    std::cout << "vm - op not implemented. (" << bc::op_to_str(op) << ")." <<  std::endl;
+    panic("vm - op not implemented (%s).\n", bc::op_to_str(op).c_str());
     return 0;
   }
 
@@ -183,7 +183,7 @@ namespace edn::vm {
     return dispatch(0);
   }
 
-  void register_nif(vm& vm, cref<str> name, niffn impl) {
+  void register_nif(vm& vm, cref<str> name, niffn impl) { 
     vm.nifs.insert_or_assign(name, impl);
   }
 }

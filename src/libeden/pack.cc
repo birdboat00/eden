@@ -37,6 +37,7 @@ DEF_RW_FOR(f64);
     tables.set(1, pack.flts.size() > 0);
     tables.set(2, pack.strs.size() > 0);
     tables.set(3, pack.fns.size() > 0);
+    tables.set(4, pack.naps.size() > 0);
     write_u8(s, tables.to_ulong());
 
     return err::make_err_none(err::err_module::pack);
@@ -202,6 +203,10 @@ DEF_RW_FOR(f64);
     if (tables.test(3)) {
       const auto err = read_table_fns(file, pack.fns);
       if (!err::is_ok(err)) return err;
+    }
+
+    if (tables.test(4)) {
+      std::cout << "pack has naps table" << std::endl;
     }
 
     return err::make_err_none(err::err_module::pack);

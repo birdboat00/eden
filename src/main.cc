@@ -51,7 +51,7 @@ auto savetestpack() -> int {
   return -1;
 }
 
-auto interpretpack(const edn::str& filename) -> int {
+auto interpretpack(const edn::str& filename, const std::vector<edn::str>& nappaths) -> int {
   std::fstream infile(filename, std::ios::in | std::ios::binary);
   if (infile.good()) {
     edn::pack::pack pack;
@@ -64,6 +64,15 @@ auto interpretpack(const edn::str& filename) -> int {
     }
     edn::vm::vm vm = edn::vm::vm { .pack = pack, .callstack = {}, .regs = {}, .nifs = {} };
     edn::bif::register_bifs(vm);
+    std::vector<edn::sptr<edn::nif::niflib>> niflibs;
+    for (auto& np : nappaths) {
+      const auto res = edn::nif::load(np, vm);
+      if (res.has_error()) {
+        std::cout << "failed to load nif lib '" << np << "'. Reason: " << static_cast<int>(res.error()) << std::endl;
+        return -1;
+      }
+      niflibs.push_back(res.value());
+    }
     const auto vmerr = edn::vm::run(vm);
     if (!edn::err::is_ok(vmerr)) {
       std::cout << "failed to execute pack file '" << filename << "'. Error: '" << edn::err::to_str(vmerr) << "'." << std::endl; 
@@ -117,7 +126,11 @@ auto main (int argc, char** argv) -> int {
 
   if (result.count("pack")) {
     const auto packfilename = result["pack"].as<edn::str>();
-    return interpretpack(packfilename);
+    std::vector<edn::str> naps;
+    if (result.count("naps")) {
+      naps = result["naps"].as<std::vector<edn::str>>();
+    }
+    return interpretpack(packfilename, naps);
   }
 
   return 0;

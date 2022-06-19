@@ -14,6 +14,7 @@ namespace edn::btp {
         op(bc::opcode::label), l(0),
         op(bc::opcode::lstr), r(0), i(strs, 0),
         op(bc::opcode::call), 1, i(fns, 1),
+        op(bc::opcode::nifcallnamed), 1, i(strs, 3),
       },
       .name = "main",
       .arity = 0
@@ -33,12 +34,12 @@ namespace edn::btp {
     return pack::pack {
       .name = "edn_bitp",
       .author = "eden project",
-      .version = "22w24a",
+      .version = "22w24b",
       .bytecode_version = kEdenBytecodeVersion,
       .entryfn = 0,
       .ints = { 10, 20, 40 },
       .flts = { -1.2, 1.0, 10.23 },
-      .strs = { "Hello, World!", "\n", "edn_bif_printreg/1" },
+      .strs = { "Hello, World!", "\n", "edn_bif_printreg/1", "edn_niftest_helloworld/0" },
       .fns = { fn_main, fn_putStrLn }
     };
   }
