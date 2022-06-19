@@ -54,7 +54,12 @@ namespace edn::vm {
     if (!vm.nifs.contains(bifname)) {
       throw std::runtime_error(err::to_str(err::make_err(err::kind::bifnotfound, err::err_module::vm)));
     }
-    vm.nifs.at(bifname)(vm, op, vm.regs[0]);
+    const auto result = vm.nifs.at(bifname)(vm, op);
+    if (result.has_error()) {
+      throw std::runtime_error(err::to_str(err::make_err(result.error(), err::err_module::vm)));
+    } else {
+      vm.regs.at(0) = result.value();
+    }
     return 2 + arity; // opcode + arity + <args>
   }
 

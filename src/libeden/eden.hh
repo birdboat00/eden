@@ -130,7 +130,7 @@ namespace edn::pack {
 
 namespace edn {
   namespace vm { struct vm; }
-  using niffn = std::function<edn::err::err(edn::vm::vm&, const edn::bc::op&, edn::term::term&)>;
+  using niffn = std::function<res<term::term>(edn::vm::vm&, const edn::bc::op&)>;
 }
 
 namespace edn::vm {
