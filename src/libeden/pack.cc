@@ -1,5 +1,6 @@
 #include "eden.hh"
 
+#include <algorithm>
 #include <bitset>
 #include <fstream>
 #include <iostream>

@@ -67,10 +67,14 @@ namespace edn {
   #define unimplemented() panic("not implemented")
   #define obsolete(msg) [[deprecated(msg)]]
 
-  #define EDN_NIF_INIT_FN(initfn) extern "C" __cdecl int edn_nif_init(void* vm) {\
-    if (vm == NULL) { printf("EDN_NIF_INIT_FN: argument vm is null\n"); return 1; }\
+  #define EDN_NIF_INIT_FN(initfn) extern "C" int edn_nif_init(void* vm) {\
+    if (vm == nullptr) {\
+      printf("EDN_NIF_INIT_FN: argument vm is null\n");\
+      return 1;\
+      }\
     return initfn(vm);\
   }
+
   #define EDN_NIF_DECL(name) edn::res<edn::term::term> name(edn::vm::vm& vm, const edn::bc::op& op)
 }
 
@@ -85,20 +89,16 @@ namespace edn::err {
     bifinvalidargs
   };
 
-  [[deprecated("use res<T> instead")]]
   enum class err_module {
     bif, btp, err, main, op, pack, term, vm
   };
 
-  [[deprecated("use res<T> instead")]]
   struct err {
     kind kind;
     err_module mod;
   };
 
-  [[deprecated("use res<T> instead")]]
   inline err make_err(kind kind, err_module mod) { return err { .kind = kind, .mod = mod }; }
-  [[deprecated("use res<T> instead")]]
   inline err make_err_none(err_module mod) { return make_err(kind::none, mod); }
 
   str to_str(const err& err);
