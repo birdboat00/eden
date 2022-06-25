@@ -5,11 +5,11 @@
 #include <fstream>
 #include <iostream>
 
+namespace edn::pack {
 #define DEF_READ_FOR(T) T read_##T(std::istream& s) { T val; s.read(reinterpret_cast<char*>(&val), sizeof(T)); return val; }
 #define DEF_WRITE_FOR(T) void write_##T(std::ostream& s, T v) { s.write(reinterpret_cast<char*>(&v), sizeof(v)); }
 #define DEF_RW_FOR(T) DEF_WRITE_FOR(T); DEF_READ_FOR(T);
 
-namespace edn::pack {
 DEF_RW_FOR(u8);
 DEF_RW_FOR(u16);
 DEF_RW_FOR(u32);
@@ -19,13 +19,17 @@ DEF_RW_FOR(u64);
 DEF_RW_FOR(usize);
 DEF_RW_FOR(f64);
 
+#undef DEF_READ_FOR
+#undef DEF_WRITE_FOR
+#undef DEF_RW_FOR
+
   void write_string(std::ostream& s, const str& str) {
     write_usize(s, str.size());
     s.write(str.data(), str.size());
   }
 
   err::err write_header(std::ostream& s, const pack& pack) {
-    s.write(kEdenPackMagic.data(), kEdenPackMagic.length());
+    write_u16(s, kEdenPackMagic);
 
     write_u16(s, pack.bytecode_version);
     write_string(s, pack.name);
@@ -33,56 +37,99 @@ DEF_RW_FOR(f64);
     write_string(s, pack.version);
     write_u32(s, pack.entryfn);
 
-    std::bitset<8> tables(0);
-    tables.set(0, pack.ints.size() > 0);
-    tables.set(1, pack.flts.size() > 0);
-    tables.set(2, pack.strs.size() > 0);
-    tables.set(3, pack.fns.size() > 0);
-    tables.set(4, pack.naps.size() > 0);
-    write_u8(s, tables.to_ulong());
+    return err::make_err_none(err::err_module::pack);
+  }
+
+  err::err write_constants_table(std::ostream& s, const pack& pack) {
+    write_u32(s, pack.constants.size());
+
+    for (usize i = 0; i < pack.constants.size(); i++) {
+      const auto c = pack.constants.at(i);
+      if (term::is<i64>(c)) {
+        write_u8(s, 0b0000);
+        write_i64(s, term::get<i64>(c));
+      } else if (term::is<f64>(c)) {
+          write_u8(s, 0b0001);
+          write_f64(s, term::get<f64>(c));
+      } else if (term::is<str>(c)) {
+        write_u8(s, 0b0010);
+        write_string(s, term::get<str>(c));
+      }
+    }
 
     return err::make_err_none(err::err_module::pack);
   }
 
-  err::err write_table_ints(std::ostream& s, const pack& pack) {
-    if (pack.ints.size() > 0) {
-      write_u32(s, pack.ints.size());
-      for(usize i = 0; i < pack.ints.size(); i++) {
-        write_i64(s, pack.ints.at(i));
-      }
+  vec<bc::bc_t> compile_opcodes(cref<edn_fn> fn) {
+    vec<bc::bc_t> bc;
+    for (const auto& op : fn.bc) {
+      std::visit(overload{
+        [&](cref<bc::ops::move> m) {
+          bc.push_back(static_cast<i32>(bc::opcode::move));
+          bc.push_back(m.dest);
+          bc.push_back(m.src);
+        },
+        [&](cref<bc::ops::ldc> ldc) {
+           bc.push_back(static_cast<i32>(bc::opcode::ldc));
+           bc.push_back(ldc.dest);
+           bc.push_back(ldc.idx);
+        },
+        [&](cref<bc::ops::call> c) {
+          bc.push_back(static_cast<i32>(c.tailcall ? bc::opcode::tailcall : bc::opcode::call));
+          bc.push_back(c.idx);
+        },
+        [&](cref<bc::ops::ret> r) {
+          bc.push_back(static_cast<i32>(bc::opcode::ret));
+        },
+        [&](cref<bc::ops::nifcallnamed> nc) {
+          bc.push_back(static_cast<i32>(bc::opcode::nifcallnamed));
+          bc.push_back(nc.arity);
+          bc.push_back(nc.nameidx);
+          for (const auto& arg : nc.args) { bc.push_back( arg); }
+        },
+        [&](cref<bc::ops::test> t) {
+          auto opcode = bc::opcode::test_isint;
+          if (t.fn == bc::ops::test_fun::isflt) { opcode = bc::opcode::test_isflt; }
+          else if (t.fn == bc::ops::test_fun::isstr) { opcode = bc::opcode::test_isstr; }
+          bc.push_back(static_cast<i32>(opcode));
+          bc.push_back(t.dest);
+          bc.push_back(t.reg);
+        },
+        [&](cref<bc::ops::cmp> c) {
+          auto opcode = bc::opcode::cmp_islt;
+          if (c.fn == bc::ops::cmp_fun::isge) { opcode = bc::opcode::cmp_isge; }
+          else if (c.fn == bc::ops::cmp_fun::iseq) { opcode = bc::opcode::cmp_iseq; }
+          else if (c.fn == bc::ops::cmp_fun::isne) { opcode = bc::opcode::cmp_isne; }
+          bc.push_back(static_cast<i32>(opcode));
+          bc.push_back(c.dest);
+          bc.push_back(c.rl);
+          bc.push_back(c.rr);
+        },
+        [&](cref<bc::ops::jump> j) {
+          bc.push_back(static_cast<i32>(bc::opcode::jump));
+          bc.push_back(j.dest);
+        },
+        [&](cref<bc::ops::label> l) {
+          bc.push_back(static_cast<i32>(bc::opcode::label));
+          bc.push_back(l.name);
+        },
+        [&](const auto&) { unimplemented();  }
+        }, op);
     }
-    return err::make_err_none(err::err_module::pack);
-  }
 
-  err::err write_table_flts(std::ostream& s, const pack& pack) {
-    if (pack.flts.size() > 0) {
-      write_u32(s, pack.flts.size());
-      for(usize i = 0; i < pack.flts.size(); i++) {
-        write_f64(s, pack.flts.at(i));
-      }
-    }
-    return err::make_err_none(err::err_module::pack);
-  }
-
-  err::err write_table_strs(std::ostream& s, const pack& pack) {
-    if (pack.strs.size() > 0) {
-      write_u32(s, pack.strs.size());
-      for(usize i = 0; i < pack.strs.size(); i++) {
-        write_string(s, pack.strs.at(i));
-      }
-    }
-    return err::make_err_none(err::err_module::pack);
+    return bc;
   }
 
   err::err write_table_fns(std::ostream& s, const pack& pack) {
     if (pack.fns.size() > 0) {
       write_u32(s, pack.fns.size());
       for(usize i = 0; i < pack.fns.size(); i++) {
+        const auto bc = compile_opcodes(pack.fns.at(i));
         write_u8(s, pack.fns.at(i).arity);
         write_string(s, pack.fns.at(i).name);
-        write_usize(s, pack.fns.at(i).bytecode.size());
-        for (usize j = 0; j < pack.fns.at(i).bytecode.size(); j++) {
-          write_i32(s, pack.fns.at(i).bytecode.at(j));
+        write_usize(s, bc.size());
+        for (const auto& v : bc) {
+          write_i32(s, v);
         }
       }
     }
@@ -93,13 +140,7 @@ DEF_RW_FOR(f64);
     auto err = write_header(file, pack);
     if (!err::is_ok(err)) return err;
 
-    err = write_table_ints(file, pack);
-    if (!err::is_ok(err)) return err;
-
-    err = write_table_flts(file, pack);
-    if (!err::is_ok(err)) return err;
-
-    err = write_table_strs(file, pack);
+    err = write_constants_table(file, pack);
     if (!err::is_ok(err)) return err;
 
     err = write_table_fns(file, pack);
@@ -113,104 +154,187 @@ DEF_RW_FOR(f64);
     return str(buf);
   }
 
-  err::err read_table_ints(std::istream& s, std::vector<i64>& outtable) {
+  err::err read_constants_table(std::istream& s, edn::vec<term::term>& outtable) {
     const auto len = read_u32(s);
+    outtable.reserve(len);
     for (usize i = 0; i < len; i++) {
-      outtable.push_back(read_i64(s));
+      const u8 type = read_u8(s);
+      if (type == 0b0000) {
+        outtable.push_back(term::from<i64>(read_i64(s)));
+      } else if (type == 0b0001) {
+        outtable.push_back(term::from<f64>(read_f64(s)));
+      } else if (type == 0b0010) {
+        outtable.push_back(term::from<str>(read_string(s)));
+      }
     }
     return err::make_err_none(err::err_module::pack);
   }
 
-  err::err read_table_flts(std::istream& s, std::vector<f64>& outtable) {
-    const auto len = read_u32(s);
-    for (usize i = 0; i < len; i++) {
-      outtable.push_back(read_f64(s));
+  auto read_opcodes(cref<vec<bc::bc_t>> bytecode) -> vec<bc::ops::bcop> {
+    vec<bc::ops::bcop> ops;
+
+    for (usize i = 0; i < bytecode.size(); i++) {
+      const auto& val = bytecode.at(i);
+      if (val >= static_cast<bc::bc_t>(bc::opcode::opcodecount)) {
+        panic("opcode not known: %i", val);
+      }
+      const auto code = static_cast<bc::opcode>(val);
+
+      auto testfun = bc::ops::test_fun::isint;
+      auto cmpfun = bc::ops::cmp_fun::iseq;
+
+      switch (code) {
+      case bc::opcode::move: {
+        const auto dest = bytecode.at(i + 1);
+        if (dest >= 64) panic("opcode register is bigger than 64");
+        const auto src = bytecode.at(i + 2);
+        if (src >= 64) panic("opcode register is bigger than 64");
+        ops.push_back(bc::ops::move{ .dest = static_cast<u8>(dest), .src = static_cast<u8>(src) });
+        i = i + 2;
+      } break;
+      case bc::opcode::ldc: {
+        const auto dest = bytecode.at(i + 1);
+        if (dest >= 64) panic("opcode register is bigger than 64");
+        const auto index = bytecode.at(i + 2);
+        ops.push_back(bc::ops::ldc{ .dest = static_cast<u8>(dest), .idx = static_cast<bc::ops::idx_t>(index) });
+        i = i + 2;
+      } break;
+      case bc::opcode::call: {
+        const auto fn_id = bytecode.at(i + 1);
+        ops.push_back(bc::ops::call{ .idx = static_cast<bc::ops::idx_t>(fn_id), .tailcall = false });
+        i = i + 1;
+      } break;
+      case bc::opcode::tailcall: {
+        const auto fn_id = bytecode.at(i + 1);
+        ops.push_back(bc::ops::call{ .idx = static_cast<bc::ops::idx_t>(fn_id), .tailcall = true });
+        i = i + 1;
+      } break;
+      case bc::opcode::ret: {
+        ops.push_back(bc::ops::ret{});
+      } break;
+      case bc::opcode::nifcallnamed: {
+        const auto arity = bytecode.at(i + 1);
+        const auto name_index = bytecode.at(i + 2);
+        vec<bc::bc_t> args;
+        for (u8 a = 0; a < arity; a++) {
+          const auto arg = bytecode.at(i + a + 3);
+          args.push_back(arg);
+        }
+        ops.push_back(bc::ops::nifcallnamed{ .arity = static_cast<u8>(arity), .nameidx = static_cast<bc::ops::idx_t>(name_index), .args = args });
+        i = i + 2 + arity;
+      } break;
+      case bc::opcode::test_isint:
+        testfun = bc::ops::test_fun::isint;
+      case bc::opcode::test_isstr:
+        testfun = bc::ops::test_fun::isstr;
+      case bc::opcode::test_isflt:
+        testfun = bc::ops::test_fun::isflt;
+        {
+          const auto label = bytecode.at(i + 1);
+          const auto reg = bytecode.at(i + 2);
+          if (reg >= 64) panic("test register is bigger than 64");
+          ops.push_back(bc::ops::test{ .dest = static_cast<usize>(label), .fn = testfun, .reg = static_cast<u8>(reg) });
+          i = i + 2;
+        } break;
+      case bc::opcode::cmp_islt:
+        cmpfun = bc::ops::cmp_fun::islt;
+      case bc::opcode::cmp_isge:
+        cmpfun = bc::ops::cmp_fun::isge;
+      case bc::opcode::cmp_iseq:
+        cmpfun = bc::ops::cmp_fun::iseq;
+      case bc::opcode::cmp_isne:
+        cmpfun = bc::ops::cmp_fun::isne;
+        {
+          const auto label = bytecode.at(i + 1);
+          const auto rl = bytecode.at(i + 2);
+          const auto rr = bytecode.at(i + 3);
+          if (rl >= 64 || rr >= 64) panic("cmp register left or right is bigger than 64");
+          ops.push_back(bc::ops::cmp{ .dest = static_cast<usize>(label), .fn = cmpfun, .rl = static_cast<u8>(rl), .rr = static_cast<u8>(rr) });
+          i = i + 3;
+        } break;
+      case bc::opcode::jump: {
+        const auto label = bytecode.at(i + 1);
+        ops.push_back(bc::ops::jump{ .dest = static_cast<usize>(label) });
+        i = i + 1;
+      } break;
+      case bc::opcode::label: {
+        const auto name = bytecode.at(i + 1);
+        ops.push_back(bc::ops::label{ .name = static_cast<usize>(name) });
+        i = i + 1;
+      } break;
+
+      default: unreachable();
+      }
     }
-    return err::make_err_none(err::err_module::pack);
+
+    return ops;
   }
 
-  err::err read_table_strs(std::istream& s, std::vector<str>& outtable) {
-    const u32 len = read_u32(s);
-    for (usize i = 0; i < len; i++) {
-      outtable.push_back(read_string(s));
-    }
-    return err::make_err_none(err::err_module::pack);
-  }
-
-  err::err read_table_fns(std::istream& s, std::vector<edn_fn>& outtable) {
+  err::err read_table_fns(std::istream& s, edn::vec<edn_fn>& outtable) {
     const auto len = read_u32(s);
+    outtable.reserve(len);
     for (usize i = 0; i < len; i++) {
       outtable.push_back(edn_fn {});
       outtable.at(i).arity = read_u8(s);
       outtable.at(i).name = read_string(s);
       const auto bclen = read_usize(s);
-      outtable.at(i).bytecode.reserve(bclen);
+      vec<bc::bc_t> bytecode;
+      bytecode.reserve(bclen);
       for (usize j = 0; j < bclen; j++) {
-        outtable.at(i).bytecode.push_back(read_i32(s));
+        bytecode.push_back(read_i32(s));
       }
+      const auto opcodes = read_opcodes(bytecode);
+      outtable.at(i).bc = opcodes;
     }
 
-    // get label addresses
-    for (usize f = 0; f < outtable.size(); f++) {
-      auto fn = outtable.at(f);
-      for (usize a = 0; a < fn.bytecode.size(); a++) {
-        const auto opcode = static_cast<bc::opcode>(fn.bytecode.at(a));
-        const auto next = (a + 1 < fn.bytecode.size()) ? fn.bytecode.at(a + 1) : 0;
-        const auto arity = bc::opcode_arity(opcode, next);
-
-        if (opcode == bc::opcode::label) {
-          outtable.at(f).labels.insert_or_assign(next, a + 2);
-        }
-
-        f += arity;
+    for (auto& fn : outtable) {
+      for (usize i = 0; i < fn.bc.size(); i++) {
+        const auto& op = fn.bc.at(i);
+        std::visit(overload{
+          [&](const bc::ops::label& l) { fn.labels.insert_or_assign(l.name, i);  },
+          [&](const auto&) {}
+          }, op);
       }
     }
 
     return err::make_err_none(err::err_module::pack);
   }
 
-  err::err read_from_file(std::istream& file, pack& pack) {
-    str magic(kEdenPackMagic.length(), '\0');
-    file.read(magic.data(), kEdenPackMagic.length());
-    if (magic.compare(kEdenPackMagic) != 0) {
-      std::cout << "file is not a pack file. magic is " << magic << " len " << magic.length() << std::endl;
-      return err::make_err(err::kind::invalidpack, err::err_module::pack);
+  res<sptr<pack>> read_from_file(std::istream& file) {
+    auto pck = std::make_shared<pack>();
+
+    const auto magic = read_u16(file);
+    if (magic != kEdenPackMagic) {
+      std::cout << "file is not an eden pack file." << std::endl;
+      return cpp::fail(err::kind::invalidpack);
+    }
+    std::cout << "file is eden pack." << std::endl;
+
+    pck->bytecode_version = read_u16(file);
+    if (pck->bytecode_version != kEdenBytecodeVersion) {
+      std::cout << "pack target version (" << pck->bytecode_version << ") is different from eden vm bytecode version (" << kEdenBytecodeVersion << ")." << std::endl;
+      return cpp::fail(err::kind::invalidpack);
     }
 
-    pack.bytecode_version = read_u16(file);
-    if (pack.bytecode_version != kEdenBytecodeVersion) {
-      std::cout << "pack target version (" << pack.bytecode_version << ") is different from eden vm bytecode version (" << kEdenBytecodeVersion << ")." << std::endl;
-      return err::make_err(err::kind::invalidpack, err::err_module::pack);
+    pck->name = read_string(file);
+    pck->author = read_string(file);
+    pck->version = read_string(file);
+    pck->entryfn = read_u32(file);
+
+    std::cout << "read header..." << std::endl;
+
+    {
+      const auto err = read_constants_table(file, pck->constants);
+      if (!err::is_ok(err)) return cpp::fail(err.kind);
+      std::cout << "finished reading const table.." << std::endl;
+    }
+    {
+      const auto err = read_table_fns(file, pck->fns);
+      if (!err::is_ok(err)) return cpp::fail(err.kind);
+      std::cout << "finished reading fn table.." << std::endl;
     }
 
-    pack.name = read_string(file);
-    pack.author = read_string(file);
-    pack.version = read_string(file);
-    pack.entryfn = read_u32(file);
-
-    const auto tables = std::bitset<8>(read_u8(file));
-    if (tables.test(0)) {
-      const auto err = read_table_ints(file, pack.ints);
-      if (!err::is_ok(err)) return err;
-    }
-    if (tables.test(1)) {
-      const auto err = read_table_flts(file, pack.flts);
-      if (!err::is_ok(err)) return err;
-    }
-    if (tables.test(2)) {
-      const auto err = read_table_strs(file, pack.strs);
-      if (!err::is_ok(err)) return err;
-    }
-    if (tables.test(3)) {
-      const auto err = read_table_fns(file, pack.fns);
-      if (!err::is_ok(err)) return err;
-    }
-
-    if (tables.test(4)) {
-      std::cout << "pack has naps table" << std::endl;
-    }
-
-    return err::make_err_none(err::err_module::pack);
+    return pck;
   }
 
   err::err dump_to_file(std::ostream& file, const pack& pack) {
@@ -222,48 +346,32 @@ DEF_RW_FOR(f64);
     << "\n  bytecodeversion-> " << pack.bytecode_version
     << "\n  entryfn-> " << pack.entryfn << "\n";
     
-    file << "tables:\nints (" << std::size(pack.ints) << ")\n";
+    file << "constants (" << std::size(pack.constants) << ")\n";
     usize ii = 0;
-    std::for_each(std::begin(pack.ints), std::end(pack.ints), [&](auto i) {
-      file << "  @" << ii << " -> " << i << "\n";
+    std::for_each(std::begin(pack.constants), std::end(pack.constants), [&](auto i) {
+      file << "  @" << ii << " -> " << term::to_str(i).value() << "\n";
       ii++;
-    });
-
-    file << "floats (" << std::size(pack.flts) << ")\n";
-    usize fi = 0;
-    std::for_each(std::begin(pack.flts), std::end(pack.flts), [&](auto f) {
-      file << "  @" << fi << " -> " << f << "\n";
-      fi++;
-    });
-
-    file << "strings (" << std::size(pack.strs) << ")\n";
-    usize si = 0;
-    std::for_each(std::begin(pack.strs), std::end(pack.strs), [&](auto s) {
-      file << "  @" << si << " -> \"" << s << "\"\n";
-      si++;
     });
 
     file << "functions (" << std::size(pack.fns) << ")\n";
     usize fni = 0;
     std::for_each(std::begin(pack.fns), std::end(pack.fns), [&](const edn_fn& fn) {
-      file << "  @" << fni << " -> '" << fn.name << "/" << static_cast<u64>(fn.arity) << "' (" << fn.bytecode.size() << ") {\n";
-      for(usize i = 0; i < fn.bytecode.size(); i++) {
-        const auto bclen = fn.bytecode.size();
-        const auto opcode = bc::opcode_to_str(static_cast<bc::opcode>(fn.bytecode.at(i)));
-        auto arity = bc::opcode_arity(static_cast<bc::opcode>(fn.bytecode.at(i)), (i + 1 < bclen) ? fn.bytecode.at( i + 1) : 0);
-        const auto op = bc::op {
-          .opcode = static_cast<bc::opcode>(fn.bytecode.at(i)),
-          .args = {
-            (i + 1 < bclen) ? fn.bytecode.at(i + 1) : 0,
-            (i + 2 < bclen) ? fn.bytecode.at(i + 2) : 0,
-            (i + 3 < bclen) ? fn.bytecode.at(i + 3) : 0,
-            (i + 4 < bclen) ? fn.bytecode.at(i + 4) : 0,
-            (i + 5 < bclen) ? fn.bytecode.at(i + 5) : 0
-          }
-        };
-
-        file << "    " << bc::op_to_str(op) << "\n";
-        i += arity;
+      file << "  @" << fni << " -> '" << fn.name << "/" << static_cast<u64>(fn.arity) << "' (" << fn.bc.size() << ") {\n";
+      for (const auto& op : fn.bc) {
+        file << "    ";
+        std::visit(overload{
+          [&](cref<bc::ops::label> l) { file << l.to_str();  },
+          [&](cref<bc::ops::move> m) { file << m.to_str(); },
+          [&](cref<bc::ops::ldc> l) { file << l.to_str(); },
+          [&](cref<bc::ops::call> c) { file << c.to_str(); },
+          [&](cref<bc::ops::ret> r) { file << r.to_str(); },
+          [&](cref<bc::ops::nifcallnamed> n) { file << n.to_str(); },
+          [&](cref<bc::ops::test> t) { file << t.to_str(); },
+          [&](cref<bc::ops::cmp> c) { file << c.to_str(); },
+          [&](cref<bc::ops::jump> j) { file << j.to_str(); },
+          [&](const auto&) { unreachable(); }
+          }, op);
+        file << "\n";
       }
       file << "  }\n";
       fni++;

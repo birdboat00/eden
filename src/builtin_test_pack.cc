@@ -1,4 +1,4 @@
-#include "eden.hh"
+#include "libeden/eden.hh"
 
 namespace edn::btp {
   #define r(n) n
@@ -10,22 +10,21 @@ namespace edn::btp {
 
   pack::pack create_test_pack() {
     static const auto fn_main = pack::edn_fn {
-      .bytecode = {
-        op(bc::opcode::label), l(0),
-        op(bc::opcode::lstr), r(0), i(strs, 0),
-        op(bc::opcode::call), 1, i(fns, 1),
-        op(bc::opcode::nifcallnamed), 1, i(strs, 3),
+      .bc = {
+        bc::ops::label { .name = 0 },
+        bc::ops::ldc { .dest = 0, .idx = 0 },
+        bc::ops::call { .idx = 1, .tailcall = false },
       },
       .name = "main",
       .arity = 0
     };
 
     static const auto fn_putStrLn = edn::pack::edn_fn {
-      .bytecode = {
-        op(bc::opcode::nifcallnamed), 2, i(strs, 2), r(0),
-        op(bc::opcode::lstr), r(1), i(strs, 1),
-        op(bc::opcode::nifcallnamed), 2, i(strs, 2), r(1),
-        op(bc::opcode::ret)
+      .bc = {
+        bc::ops::nifcallnamed { .arity = 1, .nameidx = 2, .args = { 0 }},
+        bc::ops::ldc { .dest = 1, .idx = 1 },
+        bc::ops::nifcallnamed { .arity = 1, .nameidx = 2, .args = { 1 }},
+        bc::ops::ret {},
       },
       .name = "putstrln",
       .arity = 1
@@ -37,9 +36,7 @@ namespace edn::btp {
       .version = "22w24b",
       .bytecode_version = kEdenBytecodeVersion,
       .entryfn = 0,
-      .ints = { 10, 20, 40 },
-      .flts = { -1.2, 1.0, 10.23 },
-      .strs = { "Hello, World!", "\n", "edn_bif_printreg/1", "edn_niftest_helloworld/0" },
+      .constants = { term::from<str>("Hello, World!"), term::from<str>("\n"), term::from<str>("edn_bif_dbg_printreg/1"), term::from<str>("edn_niftest_helloworld/0") },
       .fns = { fn_main, fn_putStrLn }
     };
   }

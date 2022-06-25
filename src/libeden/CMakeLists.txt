@@ -1,16 +1,11 @@
-cmake_minimum_required(VERSION 3.23)
+cmake_minimum_required(VERSION 3.20)
 project(libeden)
 
 set(SOURCE_FILES
   bc.cc
-  bccheck.cc
-  bif.cc
-  builtin_test_pack.cc
   err.cc
-  nif.cc
   pack.cc
   term.cc
-  vm.cc
 )
 
 if (CMAKE_COMPILER_IS_GNUCXX)

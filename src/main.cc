@@ -5,6 +5,11 @@
 #include "cxxopts.hh"
 
 #include "libeden/eden.hh"
+#include "libedenvm/vm.hh"
+#include "libedenvm/nif.hh"
+#include "builtin_test_pack.hh"
+
+#include <libeden_bifs/edn_bifs.hh>
 
 auto printversioninfo() -> int {
   std::cout << "eden runtime " << edn::kEdenVersion
@@ -18,15 +23,17 @@ auto dumppack(edn::cref<edn::str> filename) -> int {
 
   std::fstream packfile(filename, std::ios::in | std::ios::binary);
   if (packfile.good()) {
-    edn::pack::pack pack;
-    const auto err = edn::pack::read_from_file(packfile, pack);
-    if (!edn::err::is_ok(err)) {
-      std::cout << "failed to read pack file. Error: " << edn::err::to_str(err) << "." << std::endl;
-      return static_cast<edn::i32>(err.kind);
+    const auto res = edn::pack::read_from_file(packfile);
+    if (res.has_error()) {
+      std::cout << "failed to read pack file. Error: " << static_cast<edn::i32>(res.error()) << "." << std::endl;
+      return static_cast<edn::i32>(res.error());
+    }
+    else {
+      std::cout << "read pack file..." << std::endl;
     }
     std::fstream outfile(filename + ".dump.txt", std::ios::trunc | std::ios::out);
     if (outfile.good()) {
-      const auto err = edn::pack::dump_to_file(outfile, pack);
+      const auto err = edn::pack::dump_to_file(outfile, *res.value());
       if (!edn::err::is_ok(err)) {
         std::cout << "failed to dump pack file. Error: " << edn::err::to_str(err) << "." << std::endl;
         return static_cast<edn::i32>(err.kind);
@@ -51,20 +58,24 @@ auto savetestpack() -> int {
   return -1;
 }
 
-auto interpretpack(const edn::str& filename, const std::vector<edn::str>& nappaths) -> int {
+auto interpretpack(const edn::str& filename, const edn::vec<edn::str>& nappaths) -> int {
   std::fstream infile(filename, std::ios::in | std::ios::binary);
   if (infile.good()) {
-    edn::pack::pack pack;
-    const auto err = edn::pack::read_from_file(infile, pack);
-    if (!edn::err::is_ok(err)) {
-      std::cout << "failed to read pack from file '" << filename << "'. Error: '" << edn::err::to_str(err) << "'." << std::endl;
-      return -1;
+    auto res = edn::pack::read_from_file(infile);
+    if (res.has_error()) {
+      std::cout << "failed to read pack from file '" << filename << "'. Error: '" << static_cast<edn::i32>(res.error()) << "'." << std::endl;
+      return static_cast<edn::i32>(res.error());
     } else {
       std::cout << "successfully read pack file ..." << std::endl;
     }
-    edn::vm::vm vm = edn::vm::vm { .pack = pack, .callstack = {}, .regs = {}, .nifs = {} };
+
+    edn::vm::vm vm = edn::vm::vm { .pack = res.value(), .callstack = {}, .regs = {}, .nifs = {}};
+    std::cout << "created vm.." << std::endl;
+
     edn::bif::register_bifs(vm);
-    std::vector<edn::sptr<edn::nif::niflib>> niflibs;
+    std::cout << "registered bifs.." << std::endl;
+
+    edn::vec<edn::sptr<edn::nif::niflib>> niflibs;
     for (auto& np : nappaths) {
       const auto res = edn::nif::load(np, vm);
       if (res.has_error()) {
@@ -73,6 +84,8 @@ auto interpretpack(const edn::str& filename, const std::vector<edn::str>& nappat
       }
       niflibs.push_back(res.value());
     }
+    std::cout << "loaded naps.." << std::endl;
+    
     const auto vmerr = edn::vm::run(vm);
     if (!edn::err::is_ok(vmerr)) {
       std::cout << "failed to execute pack file '" << filename << "'. Error: '" << edn::err::to_str(vmerr) << "'." << std::endl; 
@@ -93,7 +106,7 @@ auto main (int argc, char** argv) -> int {
     ("v,version", "Print version information")
     ("h,help", "Print usage")
     ("p,pack", "Load the eden pack and execute it", cxxopts::value<edn::str>(), "<filename>")
-    ("n,naps", "Load the list of native packs", cxxopts::value<std::vector<edn::str>>(), "<filenames>")
+    ("n,naps", "Load the list of native packs", cxxopts::value<edn::vec<edn::str>>(), "<filenames>")
     ("d,dump", "Dump the eden pack file", cxxopts::value<edn::str>(), "<filename>");
   options.add_options("Builtin Test Pack")
     ("s,savetestpack", "Save the builtin test pack to codecc.eden and exit");
@@ -126,9 +139,9 @@ auto main (int argc, char** argv) -> int {
 
   if (result.count("pack")) {
     const auto packfilename = result["pack"].as<edn::str>();
-    std::vector<edn::str> naps;
+    edn::vec<edn::str> naps;
     if (result.count("naps")) {
-      naps = result["naps"].as<std::vector<edn::str>>();
+      naps = result["naps"].as<edn::vec<edn::str>>();
     }
     return interpretpack(packfilename, naps);
   }

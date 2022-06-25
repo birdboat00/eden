@@ -19,7 +19,9 @@
 
 namespace edn {
   using u8 = std::uint8_t;
+  using i8 = std::int8_t;
   using u16 = std::uint16_t;
+  using i16 = std::int16_t;
   using u32 = std::uint32_t;
   using i32 = std::int32_t;
   using u64 = std::uint64_t;
@@ -35,13 +37,16 @@ namespace edn {
   using ref = T&;
   template<typename T>
   using cref = const T&;
+  template<typename T>
+  using vec = std::vector<T>;
 
-  const str kEdenVersion = "22w24a";
-  const u16 kEdenBytecodeVersion = 0x0001;
+  const str kEdenVersion = "22w25b";
+  const u16 kEdenBytecodeVersion = 0x0002;
   #define EDEN_BUILD_TIME __TIME__ " on " __DATE__
   const str kEdenBuildTime = EDEN_BUILD_TIME; 
   #undef EDEN_BUILD_TIME
-  const str kEdenPackMagic = "eDeNPACK";
+  // const str kEdenPackMagic = "3d3np4y4";
+  const u16 kEdenPackMagic = 0x3d9c;
 
   #define panic(fmt, ...)\
     do {\
@@ -75,7 +80,24 @@ namespace edn {
     return initfn(vm);\
   }
 
-  #define EDN_NIF_DECL(name) edn::res<edn::term::term> name(edn::vm::vm& vm, const edn::bc::op& op)
+  #define EDN_NIF_DECL(name) auto name(edn::vm::vm& vm, edn::cref<edn::vec<edn::bc::bc_t>> args) -> edn::res<edn::term::term>
+}
+
+namespace edn {
+  /**
+   * std::variant visitor pattern. 
+   * Usage:
+   * 
+   * std::variant<LightItem, HeavyItem, FragileItem> package;
+   * std::visit(overload {
+   *    [](LightItem&) { std::cout << "light item\n"; },
+   *    [](HeavyItem&) { std::cout << "heavy item\n"; },
+   *    [](FragileItem&) { std::cout << "fragile item!\n"; }
+   * }, package);
+   */
+  template<class... Ts> struct overload : Ts... { using Ts::operator()...; };
+  // next line not needed in c++20
+  template<class... Ts> overload(Ts...) -> overload<Ts...>;
 }
 
 namespace edn::err {
@@ -86,7 +108,8 @@ namespace edn::err {
     mallocfail,
     termnotprintable,
     bifnotfound,
-    bifinvalidargs
+    bifinvalidargs,
+    divbyzero
   };
 
   enum class err_module {
@@ -132,7 +155,7 @@ namespace edn::bc {
   using bc_t = i32;
 
   enum class opcode {
-    move, lint, lflt, lstr, lfun,
+    move, ldc,
     call, tailcall, ret, nifcallnamed, 
     test_isint, test_isflt, test_isstr, test_isfun,
     cmp_islt, cmp_isge, cmp_iseq, cmp_isne,
@@ -141,23 +164,36 @@ namespace edn::bc {
     opcodecount
   };
 
-  struct op {
-    opcode opcode;
-    std::array<bc_t, 5> args;
-  };
-
   str opcode_to_str(const opcode opcode);
   usize opcode_arity(const opcode opcode, bc_t next);
-  str op_to_str(const op& op);
+}
 
-  namespace check {
-    bool check(const vm::vm& vm, const pack::pack& pack);
-  }
+namespace edn::bc::ops {
+  using reg_t = u8;
+  using tbl_t = u8;
+  using idx_t = u32;
+
+  struct move { reg_t dest; reg_t src; str to_str() const; };
+  struct ldc { reg_t dest; idx_t idx; str to_str() const; };
+
+  struct call { idx_t idx; bool tailcall; str to_str() const; };
+  struct ret { str to_str() const; };
+  struct nifcallnamed { u8 arity; idx_t nameidx; vec<bc_t> args; str to_str() const; };
+
+  enum class test_fun { isint, isflt, isstr, isfun };
+  struct test { usize dest; test_fun fn; u8 reg; str to_str() const; };
+  enum class cmp_fun { islt, isge, iseq, isne };
+  struct cmp { usize dest; cmp_fun fn; u8 rl; u8 rr; str to_str() const; };
+
+  struct label { usize name; str to_str() const; };
+  struct jump { usize dest; str to_str() const; };
+  
+  using bcop = std::variant<move, ldc, call, ret, nifcallnamed, test, cmp, label, jump>;
 }
 
 namespace edn::pack {
   struct edn_fn {
-    std::vector<bc::bc_t> bytecode;
+    vec<bc::ops::bcop> bc;
     std::unordered_map<u64, usize> labels;
     str name;
     u8 arity;
@@ -169,55 +205,12 @@ namespace edn::pack {
     u16 bytecode_version;
     u32 entryfn;
 
-    std::vector<str> naps;
-    std::vector<i64> ints;
-    std::vector<f64> flts;
-    std::vector<str> strs;
-    std::vector<edn_fn> fns;
+    edn::vec<term::term> constants;
+    edn::vec<str> naps;
+    edn::vec<edn_fn> fns;
   };
 
   err::err write_to_file(std::ostream& file, const pack& pack);
-  err::err read_from_file(std::istream& file, pack& pack);
+  res<sptr<pack>> read_from_file(std::istream& file);
   err::err dump_to_file(std::ostream& file, const pack& pack);
-}
-
-namespace edn {
-  namespace vm { struct vm; }
-  using niffn = std::function<res<term::term>(edn::vm::vm&, const edn::bc::op&)>;
-}
-
-namespace edn::vm {
-  struct callstackentry {
-    u32 fnid;
-    usize ip;
-  };
-  struct vm {
-    pack::pack& pack;
-    std::stack<callstackentry> callstack;
-    std::array<term::term, 64> regs;
-
-    std::unordered_map<str, niffn> nifs;
-  };
-  err::err run(vm& vm);
-  void register_nif(vm& vm, cref<str> name, niffn impl);
-}
-
-namespace edn::bif {
-  void register_bifs(vm::vm& vm);
-}
-
-namespace edn::nif {
-  struct niflib {
-    #ifdef _WIN32
-    HMODULE hmodlib;
-    #endif
-
-    ~niflib();
-  };
-
-  res<sptr<niflib>> load(const str& filename, vm::vm& vm);
-}
-
-namespace edn::btp {
-  pack::pack create_test_pack();
 }

@@ -3,5 +3,8 @@
 *.exe
 *.a
 .vscode
+.vs
 build
+out
 bin
+CMakeSettings.json
