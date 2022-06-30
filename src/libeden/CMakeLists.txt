@@ -3,7 +3,6 @@ project(libeden)
 
 set(SOURCE_FILES
   bc.cc
-  err.cc
   pack.cc
   term.cc
 )

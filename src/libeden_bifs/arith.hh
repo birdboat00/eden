@@ -2,9 +2,9 @@
 #include <libedenvm/vm.hh>
 
 namespace edn::bif::arith {
-  auto sadd_2(vm::vm& vm, cref<vec<bc::bc_t>> args) -> res<term::term>;
-  auto ssub_2(vm::vm& vm, cref<vec<bc::bc_t>> args) -> res<term::term>;
-  auto smul_2(vm::vm& vm, cref<vec<bc::bc_t>> args) -> res<term::term>;
-  auto sdiv_2(vm::vm& vm, cref<vec<bc::bc_t>> args) -> res<term::term>;
-  auto sneg_1(vm::vm& vm, cref<vec<bc::bc_t>> args) -> res<term::term>;
+  EDN_NIF_DECL(sadd_2);
+  EDN_NIF_DECL(ssub_2);
+  EDN_NIF_DECL(smul_2);
+  EDN_NIF_DECL(sdiv_2);
+  EDN_NIF_DECL(sneg_1);
 }

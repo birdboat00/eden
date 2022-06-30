@@ -1,6 +1,7 @@
 #include "../libeden/eden.hh"
 #include "../libedenvm/vm.hh"
 
+#include <memory>
 #include <iostream>
 
 namespace edn::niftest {
@@ -12,7 +13,7 @@ namespace edn::niftest {
 
 int edn_niftest_init(void* vm) {
   auto& ednvm = *(static_cast<edn::vm::vm*>(vm));
-  edn::vm::register_nif(ednvm, "edn_niftest_helloworld/0", &edn::niftest::edn_nif_niftest_helloworld_0);
+  edn::vm::register_nif(ednvm, "edn_niftest_helloworld/0", std::addressof(edn::niftest::edn_nif_niftest_helloworld_0), {});
   
   return 0;
 }

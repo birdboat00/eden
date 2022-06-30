@@ -34,9 +34,9 @@ auto dumppack(edn::cref<edn::str> filename) -> int {
     std::fstream outfile(filename + ".dump.txt", std::ios::trunc | std::ios::out);
     if (outfile.good()) {
       const auto err = edn::pack::dump_to_file(outfile, *res.value());
-      if (!edn::err::is_ok(err)) {
-        std::cout << "failed to dump pack file. Error: " << edn::err::to_str(err) << "." << std::endl;
-        return static_cast<edn::i32>(err.kind);
+      if (err != edn::err::kind::none) {
+        std::cout << "failed to dump pack file. Error: " << static_cast<edn::i32>(err) << "." << std::endl;
+        return static_cast<edn::i32>(err);
       }
       return 0;
     }
@@ -52,7 +52,7 @@ auto savetestpack() -> int {
   std::fstream outfile("codecc.eden", std::ios::trunc | std::ios::out | std::ios::binary);
   if (outfile.good()) {
     const auto err = edn::pack::write_to_file(outfile, bitp);
-    if (!edn::err::is_ok(err)) return static_cast<edn::i32>(err.kind);
+    if (err != edn::err::kind::none) return static_cast<edn::i32>(err);
     return 0;
   }
   return -1;
@@ -69,7 +69,7 @@ auto interpretpack(const edn::str& filename, const edn::vec<edn::str>& nappaths)
       std::cout << "successfully read pack file ..." << std::endl;
     }
 
-    edn::vm::vm vm = edn::vm::vm { .pack = res.value(), .callstack = {}, .regs = {}, .nifs = {}};
+    edn::vm::vm vm = edn::vm::vm { .pack = res.value(), .nifs = { } };
     std::cout << "created vm.." << std::endl;
 
     edn::bif::register_bifs(vm);
@@ -87,8 +87,8 @@ auto interpretpack(const edn::str& filename, const edn::vec<edn::str>& nappaths)
     std::cout << "loaded naps.." << std::endl;
     
     const auto vmerr = edn::vm::run(vm);
-    if (!edn::err::is_ok(vmerr)) {
-      std::cout << "failed to execute pack file '" << filename << "'. Error: '" << edn::err::to_str(vmerr) << "'." << std::endl; 
+    if (vmerr != edn::err::kind::none) {
+      std::cout << "failed to execute pack file '" << filename << "'. Error: '" << static_cast<edn::i32>(vmerr) << "'." << std::endl; 
       return -1;
     }
     return 0;

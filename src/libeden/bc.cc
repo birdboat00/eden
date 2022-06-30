@@ -1,4 +1,4 @@
-#include "eden.hh"
+#include "bc.hh"
 
 #include <sstream>
 
@@ -56,44 +56,19 @@ namespace edn::bc::ops {
     s << "@" << name;
     return s.str();
   }
-}
 
-namespace edn::bc {
-  str opcode_to_str(const opcode opcode) {
-    switch (opcode) {
-      case opcode::move: return "move";
-      case opcode::ldc: return "ldc";
-      case opcode::call: return "call";
-      case opcode::ret: return "ret";
-      case opcode::nifcallnamed: return "nifcallnamed";
-      case opcode::test_isint: return "test_isint";
-      case opcode::test_isflt: return "test_isflt";
-      case opcode::test_isstr: return "test_isstr";
-      case opcode::test_isfun: return "test_isfun";
-      case opcode::cmp_islt: return "cmp_islt";
-      case opcode::cmp_isge: return "cmp_isge";
-      case opcode::cmp_iseq: return "cmp_iseq";
-      case opcode::cmp_isne: return "cmp_isne";
-      case opcode::jump: return "jump";
-      case opcode::label: return "label";
-      default: return "unknown-opcode";
-    }
-    
-    unreachable();
-  }
-
-  usize opcode_arity(const opcode opcode, bc_t next) {
-    switch (opcode) {
-      case opcode::move: case opcode::ldc: return 2;
-      case opcode::call: case opcode::nifcallnamed: return 1 + static_cast<edn::usize>(next);
-      case opcode::test_isint: case opcode::test_isflt: case opcode::test_isstr: case opcode::test_isfun: return 2;
-      case opcode::cmp_islt: case opcode::cmp_isge: case opcode::cmp_iseq: case opcode::cmp_isne: return 3;
-      case opcode::ret: return 0;
-      case opcode::jump: return 1;
-      case opcode::label: return 1;
-      default: return 0;
-    }
-  
-    unreachable();
+  auto to_str(cref<bcop> op) -> str {
+    return std::visit(overload {
+      [&](cref<bc::ops::move> mov) -> auto { return mov.to_str(); },
+      [&](cref<bc::ops::ldc> ldc) -> auto{ return ldc.to_str();  },
+      [&](cref<bc::ops::call> c) -> auto { return c.to_str(); },
+      [&](cref<bc::ops::ret> r) -> auto { return r.to_str(); },
+      [&](cref<bc::ops::nifcallnamed> nc) -> auto { return nc.to_str(); },
+      [&](cref<bc::ops::test> t) -> auto { return t.to_str(); },
+      [&](cref<bc::ops::cmp> c) -> auto { return c.to_str(); },
+      [&](cref<bc::ops::jump> j) -> auto { return j.to_str(); },
+      [&](cref<bc::ops::label> l) -> auto { return l.to_str(); },
+      [&](const auto&) { unimplemented(); }
+    }, op);
   }
 }

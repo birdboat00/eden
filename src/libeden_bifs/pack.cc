@@ -1,11 +1,11 @@
 #include "pack.hh"
 
 namespace edn::bif::pack {
-  auto getpackname_0(vm::vm& vm, cref<vec<bc::bc_t>> args) -> res<term::term> {
+  EDN_NIF_DECL(getpackname_0) {
     return term::from<str>(vm.pack->name);
   }
 
-  auto getpackversion_0(vm::vm& vm, cref<vec<bc::bc_t>> args) -> res<term::term> {
+  EDN_NIF_DECL(getpackversion_0) {
     return term::from<str>(vm.pack->version);
   }
 }

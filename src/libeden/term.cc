@@ -1,4 +1,4 @@
-#include "eden.hh"
+#include "term.hh"
 
 #include <sstream>
 
@@ -13,6 +13,9 @@ namespace edn::term {
       return stream.str();
     } else if (is<str>(term)) {
       stream << get<str>(term);
+      return stream.str();
+    } else if (is<pid>(term)) {
+      stream << "<pid." << get<pid>(term) << ">";
       return stream.str();
     }
 

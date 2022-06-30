@@ -2,6 +2,6 @@
 #include <libedenvm/vm.hh>
 
 namespace edn::bif::pack {
-  auto getpackname_0(vm::vm& vm, cref<vec<bc::bc_t>> args) -> res<term::term>;
-  auto getpackversion_0(vm::vm& vm, cref<vec<bc::bc_t>> args) -> res<term::term>;
+  EDN_NIF_DECL(getpackname_0);
+  EDN_NIF_DECL(getpackversion_0);
 }

@@ -1,9 +1,9 @@
 #include "arith.hh"
 
 namespace edn::bif::arith {
-  auto sadd_2(vm::vm& vm, cref<vec<bc::bc_t>> args) -> res<term::term> {
-    const auto lhs = vm.regs.at(args.at(0));
-    const auto rhs = vm.regs.at(args.at(1));
+  EDN_NIF_DECL(sadd_2) {
+    const auto& lhs = args.at(0);
+    const auto& rhs = args.at(1);
 
     if (term::is<i64>(lhs)) {
       if (term::is<i64>(rhs)) {
@@ -24,9 +24,9 @@ namespace edn::bif::arith {
     return cpp::fail(err::kind::bifinvalidargs);
   }
 
-  auto ssub_2(vm::vm& vm, cref<vec<bc::bc_t>> args) -> res<term::term> {
-    const auto lhs = vm.regs.at(args.at(0));
-    const auto rhs = vm.regs.at(args.at(1));
+  EDN_NIF_DECL(ssub_2) {
+    const auto& lhs = args.at(0);
+    const auto& rhs = args.at(1);
 
     if (term::is<i64>(lhs)) {
       if (term::is<i64>(rhs)) {
@@ -45,9 +45,9 @@ namespace edn::bif::arith {
     return cpp::fail(err::kind::bifinvalidargs);
   }
 
-  auto smul_2(vm::vm& vm, cref<vec<bc::bc_t>> args) -> res<term::term> {
-    const auto lhs = vm.regs.at(args.at(0));
-    const auto rhs = vm.regs.at(args.at(1));
+  EDN_NIF_DECL(smul_2) {
+    const auto& lhs = args.at(0);
+    const auto& rhs = args.at(1);
 
     if (term::is<i64>(lhs)) {
       if (term::is<i64>(rhs)) {
@@ -66,9 +66,9 @@ namespace edn::bif::arith {
     return cpp::fail(err::kind::bifinvalidargs);
   }
 
-  auto sdiv_2(vm::vm& vm, cref<vec<bc::bc_t>> args) -> res<term::term> {
-    const auto lhs = vm.regs.at(args.at(0));
-    const auto rhs = vm.regs.at(args.at(1));
+  EDN_NIF_DECL(sdiv_2) {
+    const auto& lhs = args.at(0);
+    const auto& rhs = args.at(0);
 
     if (
         (term::is<i64>(rhs) && term::get<i64>(rhs) == 0)
@@ -93,13 +93,13 @@ namespace edn::bif::arith {
     return cpp::fail(err::kind::bifinvalidargs);
   }
 
-  auto sneg_1(vm::vm& vm, cref<vec<bc::bc_t>> args) -> res<term::term> {
-    const auto lhs = vm.regs.at(args.at(0));
+  EDN_NIF_DECL(sneg_1) {
+    const auto arg = args.at(0);
 
-    if (term::is<f64>(lhs)) {
-      return term::from<f64>(-term::get<f64>(lhs));
-    } else if (term::is<i64>(lhs)) {
-      return term::from<i64>(-term::get<i64>(lhs));
+    if (term::is<f64>(arg)) {
+      return term::from<f64>(-term::get<f64>(arg));
+    } else if (term::is<i64>(arg)) {
+      return term::from<i64>(-term::get<i64>(arg));
     }
 
     return cpp::fail(err::kind::bifinvalidargs);

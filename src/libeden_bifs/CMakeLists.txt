@@ -7,7 +7,6 @@ set(SOURCE_FILES
   dbg.cc
   pack.cc
   rt.cc
-  term.cc
 )
 
 if (CMAKE_COMPILER_IS_GNUCXX)

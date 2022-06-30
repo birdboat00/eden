@@ -1,9 +1,11 @@
-#include "eden.hh"
+#include "pack.hh"
 
 #include <algorithm>
 #include <bitset>
 #include <fstream>
 #include <iostream>
+
+#include "defines.hh"
 
 namespace edn::pack {
 #define DEF_READ_FOR(T) T read_##T(std::istream& s) { T val; s.read(reinterpret_cast<char*>(&val), sizeof(T)); return val; }
@@ -28,7 +30,7 @@ DEF_RW_FOR(f64);
     s.write(str.data(), str.size());
   }
 
-  err::err write_header(std::ostream& s, const pack& pack) {
+  err::kind write_header(std::ostream& s, const pack& pack) {
     write_u16(s, kEdenPackMagic);
 
     write_u16(s, pack.bytecode_version);
@@ -37,10 +39,10 @@ DEF_RW_FOR(f64);
     write_string(s, pack.version);
     write_u32(s, pack.entryfn);
 
-    return err::make_err_none(err::err_module::pack);
+    return err::kind::none;
   }
 
-  err::err write_constants_table(std::ostream& s, const pack& pack) {
+  err::kind write_constants_table(std::ostream& s, const pack& pack) {
     write_u32(s, pack.constants.size());
 
     for (usize i = 0; i < pack.constants.size(); i++) {
@@ -57,7 +59,7 @@ DEF_RW_FOR(f64);
       }
     }
 
-    return err::make_err_none(err::err_module::pack);
+    return err::kind::none;
   }
 
   vec<bc::bc_t> compile_opcodes(cref<edn_fn> fn) {
@@ -120,7 +122,7 @@ DEF_RW_FOR(f64);
     return bc;
   }
 
-  err::err write_table_fns(std::ostream& s, const pack& pack) {
+  err::kind write_table_fns(std::ostream& s, const pack& pack) {
     if (pack.fns.size() > 0) {
       write_u32(s, pack.fns.size());
       for(usize i = 0; i < pack.fns.size(); i++) {
@@ -133,15 +135,16 @@ DEF_RW_FOR(f64);
         }
       }
     }
-    return err::make_err_none(err::err_module::pack);
+
+    return err::kind::none;
   }
 
-  err::err write_to_file(std::ostream& file, const pack& pack) {
+  err::kind write_to_file(std::ostream& file, const pack& pack) {
     auto err = write_header(file, pack);
-    if (!err::is_ok(err)) return err;
+    if (err != err::kind::none) return err;
 
     err = write_constants_table(file, pack);
-    if (!err::is_ok(err)) return err;
+    if (err != err::kind::none) return err;
 
     err = write_table_fns(file, pack);
     return err;
@@ -154,7 +157,7 @@ DEF_RW_FOR(f64);
     return str(buf);
   }
 
-  err::err read_constants_table(std::istream& s, edn::vec<term::term>& outtable) {
+  err::kind read_constants_table(std::istream& s, edn::vec<term::term>& outtable) {
     const auto len = read_u32(s);
     outtable.reserve(len);
     for (usize i = 0; i < len; i++) {
@@ -167,7 +170,7 @@ DEF_RW_FOR(f64);
         outtable.push_back(term::from<str>(read_string(s)));
       }
     }
-    return err::make_err_none(err::err_module::pack);
+    return err::kind::none;
   }
 
   auto read_opcodes(cref<vec<bc::bc_t>> bytecode) -> vec<bc::ops::bcop> {
@@ -270,7 +273,7 @@ DEF_RW_FOR(f64);
     return ops;
   }
 
-  err::err read_table_fns(std::istream& s, edn::vec<edn_fn>& outtable) {
+  err::kind read_table_fns(std::istream& s, edn::vec<edn_fn>& outtable) {
     const auto len = read_u32(s);
     outtable.reserve(len);
     for (usize i = 0; i < len; i++) {
@@ -297,7 +300,7 @@ DEF_RW_FOR(f64);
       }
     }
 
-    return err::make_err_none(err::err_module::pack);
+    return err::kind::none;
   }
 
   res<sptr<pack>> read_from_file(std::istream& file) {
@@ -325,19 +328,19 @@ DEF_RW_FOR(f64);
 
     {
       const auto err = read_constants_table(file, pck->constants);
-      if (!err::is_ok(err)) return cpp::fail(err.kind);
+      if (err != err::kind::none) return cpp::fail(err);
       std::cout << "finished reading const table.." << std::endl;
     }
     {
       const auto err = read_table_fns(file, pck->fns);
-      if (!err::is_ok(err)) return cpp::fail(err.kind);
+      if (err != err::kind::none) return cpp::fail(err);
       std::cout << "finished reading fn table.." << std::endl;
     }
 
     return pck;
   }
 
-  err::err dump_to_file(std::ostream& file, const pack& pack) {
+  err::kind dump_to_file(std::ostream& file, const pack& pack) {
     file << "eden runtime " << kEdenVersion << " [bytecode: " << kEdenBytecodeVersion << "] (compiled: " << kEdenBuildTime << ")\n";
     file << "--- BEGIN PACK DUMP ---\n";
     file << "pack\n  name-> " << pack.name
@@ -358,20 +361,7 @@ DEF_RW_FOR(f64);
     std::for_each(std::begin(pack.fns), std::end(pack.fns), [&](const edn_fn& fn) {
       file << "  @" << fni << " -> '" << fn.name << "/" << static_cast<u64>(fn.arity) << "' (" << fn.bc.size() << ") {\n";
       for (const auto& op : fn.bc) {
-        file << "    ";
-        std::visit(overload{
-          [&](cref<bc::ops::label> l) { file << l.to_str();  },
-          [&](cref<bc::ops::move> m) { file << m.to_str(); },
-          [&](cref<bc::ops::ldc> l) { file << l.to_str(); },
-          [&](cref<bc::ops::call> c) { file << c.to_str(); },
-          [&](cref<bc::ops::ret> r) { file << r.to_str(); },
-          [&](cref<bc::ops::nifcallnamed> n) { file << n.to_str(); },
-          [&](cref<bc::ops::test> t) { file << t.to_str(); },
-          [&](cref<bc::ops::cmp> c) { file << c.to_str(); },
-          [&](cref<bc::ops::jump> j) { file << j.to_str(); },
-          [&](const auto&) { unreachable(); }
-          }, op);
-        file << "\n";
+        file << "    " << bc::ops::to_str(op) << "\n";
       }
       file << "  }\n";
       fni++;
@@ -379,6 +369,6 @@ DEF_RW_FOR(f64);
 
     file << "--- END PACK DUMP ---\n";
 
-    return err::make_err_none(err::err_module::pack);
+    return err::kind::none;
   }
 }

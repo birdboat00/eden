@@ -2,5 +2,5 @@
 #include <libedenvm/vm.hh>
 
 namespace edn::bif::dbg {
-  auto printreg_1(vm::vm& vm, cref<vec<bc::bc_t>> args) -> res<term::term>;
+  EDN_NIF_DECL(printreg_1);
 }

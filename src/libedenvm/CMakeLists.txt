@@ -3,6 +3,7 @@ project(libedenvm)
 
 set(SOURCE_FILES
   nif.cc
+  sched.cc
   vm.cc
 )
 
