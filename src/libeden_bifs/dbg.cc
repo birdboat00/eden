@@ -8,7 +8,7 @@ namespace edn::bif::dbg {
     if (s.has_error()) {
       return term::from<i64>(static_cast<i64>(s.error()));
     }
-    std::cout << s.value();
+    print(s.value());
     return term::from<i64>(0);
   }
 }

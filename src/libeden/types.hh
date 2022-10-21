@@ -44,6 +44,22 @@ namespace edn {
 
   using pid = u32;
 
+  inline auto println() -> void {
+    std::cout << '\n';
+  }
+  template<typename... Args>
+  inline auto println(strref fmt, Args&&... args) -> void {
+    std::cout << std::vformat(fmt, std::make_format_args(args...)) << '\n';
+  }
+  template<typename... Args>
+  inline auto print(strref fmt, Args&&... args) -> void {
+    std::cout << std::vformat(fmt, std::make_format_args(args...));
+  }
+  template<typename... Args>
+  inline auto eprintln(strref fmt, Args&&... args) -> void {
+    std::cerr << std::vformat(fmt, std::make_format_args(args...)) << '\n';
+  }
+
   template<typename... Args>
   [[noreturn]] inline auto panic(strref fmt, Args&&... args) -> void {
     do {

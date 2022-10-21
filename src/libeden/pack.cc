@@ -308,14 +308,14 @@ DEF_RW_FOR(f64);
 
     const auto magic = read_u16(file);
     if (magic != kEdenPackMagic) {
-      std::cout << "file is not an eden pack file." << std::endl;
+      eprintln("file is not an eden pack file.");
       return cpp::fail(err::kind::invalidpack);
     }
-    std::cout << "file is eden pack." << std::endl;
+    println("file is eden pack");
 
     pck->bytecode_version = read_u16(file);
     if (pck->bytecode_version != kEdenBytecodeVersion) {
-      std::cout << "pack target version (" << pck->bytecode_version << ") is different from eden vm bytecode version (" << kEdenBytecodeVersion << ")." << std::endl;
+      eprintln("pack target version ({}) is different from eden vm bytecode version ({}).", pck->bytecode_version, kEdenBytecodeVersion);
       return cpp::fail(err::kind::invalidpack);
     }
 
@@ -324,17 +324,17 @@ DEF_RW_FOR(f64);
     pck->version = read_string(file);
     pck->entryfn = read_u32(file);
 
-    std::cout << "read header..." << std::endl;
+    println("finished reading header...");
 
     {
       const auto err = read_constants_table(file, pck->constants);
       if (err != err::kind::none) return cpp::fail(err);
-      std::cout << "finished reading const table.." << std::endl;
+      println("finished reading constant table...");
     }
     {
       const auto err = read_table_fns(file, pck->fns);
       if (err != err::kind::none) return cpp::fail(err);
-      std::cout << "finished reading fn table.." << std::endl;
+      println("finished reading functions table...");
     }
 
     return pck;
@@ -370,5 +370,82 @@ DEF_RW_FOR(f64);
     file << "--- END PACK DUMP ---\n";
 
     return err::kind::none;
+  }
+
+  pack_builder::pack_builder() {}
+
+  auto pack_builder::with_name(cref<str> name) -> ref<pack_builder> {
+    _name = name;
+    return *this;
+  }
+
+  auto pack_builder::with_author(cref<str> name) -> ref<pack_builder> {
+    _author = name;
+    return *this;
+  }
+
+  auto pack_builder::with_version(cref<str> ver) -> ref<pack_builder> {
+    _version = ver;
+    return *this;
+  }
+
+  auto pack_builder::constant(cref<term::term> term) -> ref<pack_builder> {
+    _constants.push_back(term);
+    return *this;
+  }
+
+  auto pack_builder::constants(cref<vec<term::term>> terms) -> ref<pack_builder> {
+    _constants = terms;
+    return *this;
+  }
+
+  auto pack_builder::function(cref<edn_fn> fn) -> ref<pack_builder> {
+    _fns.push_back(fn);
+    return *this;
+  }
+
+  auto pack_builder::entry(u32 entryidx) -> ref<pack_builder> {
+    _entryfn = entryidx;
+    return *this;
+  }
+
+  auto pack_builder::build() -> pack {
+    return pack {
+      .name = _name,
+      .author = _author,
+      .version = _version,
+      .bytecode_version = kEdenBytecodeVersion,
+      .entryfn = _entryfn,
+      .constants = _constants,
+      .naps = {},
+      .fns = _fns
+    };
+  }
+
+  fn_builder::fn_builder() {}
+
+  auto fn_builder::signature(cref<str> name, u8 arity) -> ref<fn_builder> {
+    _name = name;
+    _arity = arity;
+    return *this;
+  }
+
+  auto fn_builder::bytecode(vec<bc::ops::bcop> ops) -> ref<fn_builder> {
+    _bc = ops;
+    return *this;
+  }
+
+  auto fn_builder::op(bc::ops::bcop op) -> ref<fn_builder> {
+    _bc.push_back(op);
+    return *this;
+  }
+
+  auto fn_builder::build() -> edn_fn {
+    return edn_fn {
+      .bc = _bc,
+      .labels = {},
+      .name = _name,
+      .arity = _arity
+    };
   }
 }

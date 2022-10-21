@@ -38,9 +38,9 @@ namespace edn::vm {
   usize do_nifcall(vm& vm, proc::ctx& p, cref<bc::ops::nifcallnamed> nifcall) {
     const auto name = term::get<str>(vm.pack->constants.at(nifcall.nameidx));
     if (!vm.nifs.contains(name)) {
-      std::cout << "nif with name '" << name << "' is not registered. available ones are:" << std::endl;
+      eprintln("nif with name '{}' is not registered. Available ones are:", name);
       for (const auto& nif : vm.nifs) {
-        std::cout << "  '" << nif.first << "'" << std::endl;
+        println("  '{}'", nif.first);
       }
       panic("nif is not registered");
     }
@@ -130,7 +130,7 @@ namespace edn::vm {
     vm.sched->current_mut().callstack.top().ip += adv;
 
     if (vm.sched->current().callstack.top().ip >= vm.pack->fns.at(vm.sched->current().callstack.top().fn_id).bc.size()) {
-      std::cout << "\n\nvm: bytecode end reached." << std::endl;
+      println("[bytecode end reached]");
       return err::kind::none;
     }
 
@@ -157,7 +157,7 @@ namespace edn::vm {
     vm.sched = std::make_shared<sched::scheduler>();
     const auto entrypid = vm.sched->spawn(vm.pack->entryfn);
     const auto pid = vm.sched->next();
-    std::cout << "\n\n" << std::endl;
+    println();
     return dispatch(vm, 0);
   }
 

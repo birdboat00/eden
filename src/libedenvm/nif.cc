@@ -17,20 +17,20 @@ namespace edn::nif {
 
     lib->libptr = LoadLibraryA(filename.c_str());
     if (lib->libptr == nullptr || lib->libptr == INVALID_HANDLE_VALUE) {
-      std::cout << "failed to load niflib DLL. Reason: " << GetLastError() << std::endl;
+      eprintln("failed to load nap DLL. Reason: {}.", GetLastError());
       return cpp::fail(err::kind::invalidfile);
     }
 
     using initproc = int(__cdecl*)(void*);
     const auto proc = (initproc)GetProcAddress(static_cast<HMODULE>(lib->libptr), "edn_nif_init");
     if (!proc) {
-      std::cout << "failed to get address of 'edn_nif_init' in library '" << filename << "'." << std::endl;
+      eprintln("Failed to get address of 'edn_nif_init' in library '{}'", filename);
       return cpp::fail(err::kind::invalidfile);
     }
 
-    const auto res = initproc(&vm);
+    const auto res = proc(&vm);
     if (res != 0) {
-      std::cout << "failed to init nif library in library '" << filename << "'. Reason: " << res << std::endl;
+      eprintln("failed to init nif library in library '{}'. Reason: {}.", filename, res);
       return cpp::fail(err::kind::invalidfile);
     }
 

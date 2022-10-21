@@ -12,38 +12,41 @@
 #include <libeden_bifs/edn_bifs.hh>
 
 auto printversioninfo() -> int {
-  std::cout << "eden runtime " << edn::kEdenVersion
-    << " [bytecode: " << edn::kEdenBytecodeVersion << "] (compiled: "
-    << edn::kEdenBuildTime << ")" << std::endl;
+  edn::println("eden runtime {} [bytecode: {}] (build {})", 
+    edn::kEdenVersion,
+    edn::kEdenBytecodeVersion,
+    edn::kEdenBuildTime
+  );
   return 0;
 }
 
 auto dumppack(edn::cref<edn::str> filename) -> int {
-  std::cout << "dump pack" << std::endl;
+  
+  edn::println("dump pack");
 
   std::fstream packfile(filename, std::ios::in | std::ios::binary);
   if (packfile.good()) {
     const auto res = edn::pack::read_from_file(packfile);
     if (res.has_error()) {
-      std::cout << "failed to read pack file. Error: " << static_cast<edn::i32>(res.error()) << "." << std::endl;
+      edn::eprintln("failed to read pack file. Error: {}.", static_cast<edn::i32>(res.error()));
       return static_cast<edn::i32>(res.error());
     }
     else {
-      std::cout << "read pack file..." << std::endl;
+      edn::println("read pack file...");
     }
     std::fstream outfile(filename + ".dump.txt", std::ios::trunc | std::ios::out);
     if (outfile.good()) {
       const auto err = edn::pack::dump_to_file(outfile, *res.value());
       if (err != edn::err::kind::none) {
-        std::cout << "failed to dump pack file. Error: " << static_cast<edn::i32>(err) << "." << std::endl;
+        edn::eprintln("failed to dump pack file. Error: {}.", static_cast<edn::i32>(err));
         return static_cast<edn::i32>(err);
       }
       return 0;
     }
-    std::cout << "failed to create file '" << filename << ".dump.txt'." << std::endl;
+    edn::eprintln("failed to create file '{}.dump.txt'", filename);
     return -1;
   }
-  std::cout << "failed to open file '" << filename << "'." << std::endl;
+  edn::eprintln("failed to open file '{}'.", filename);
   return -1;
 }
 
@@ -63,37 +66,37 @@ auto interpretpack(const edn::str& filename, const edn::vec<edn::str>& nappaths)
   if (infile.good()) {
     auto res = edn::pack::read_from_file(infile);
     if (res.has_error()) {
-      std::cout << "failed to read pack from file '" << filename << "'. Error: '" << static_cast<edn::i32>(res.error()) << "'." << std::endl;
+      edn::eprintln("failed to read pack from file '{}'. Error: '{}'.", filename, static_cast<edn::i32>(res.error()));
       return static_cast<edn::i32>(res.error());
     } else {
-      std::cout << "successfully read pack file ..." << std::endl;
+      edn::println("successfully read pack file ...");
     }
 
     edn::vm::vm vm = edn::vm::vm { .pack = res.value(), .nifs = { } };
-    std::cout << "created vm.." << std::endl;
+    edn::println("created vm ...");
 
     edn::bif::register_bifs(vm);
-    std::cout << "registered bifs.." << std::endl;
+    edn::println("registered bifs ...");
 
     edn::vec<edn::sptr<edn::nif::niflib>> niflibs;
     for (auto& np : nappaths) {
       const auto res = edn::nif::load(np, vm);
       if (res.has_error()) {
-        std::cout << "failed to load nif lib '" << np << "'. Reason: " << static_cast<int>(res.error()) << std::endl;
+        edn::eprintln("failed to load nif lib '{}'. Reason: {}.", np, static_cast<edn::i32>(res.error()));
         return -1;
       }
       niflibs.push_back(res.value());
     }
-    std::cout << "loaded naps.." << std::endl;
+    edn::println("loaded naps ...");
     
     const auto vmerr = edn::vm::run(vm);
     if (vmerr != edn::err::kind::none) {
-      std::cout << "failed to execute pack file '" << filename << "'. Error: '" << static_cast<edn::i32>(vmerr) << "'." << std::endl; 
+      edn::eprintln("failed to execute pack file '{}'. Error: {}.", filename, static_cast<edn::i32>(vmerr));
       return -1;
     }
     return 0;
   } else {
-    std::cout << "failed to open file '" << filename << "'." << std::endl;
+    edn::eprintln("failed to open file '{}'.", filename);
     return -1;
   }
 }
@@ -115,12 +118,12 @@ auto main (int argc, char** argv) -> int {
   try {
     result = options.parse(argc, argv);
   } catch (cxxopts::OptionException& e) {
-    std::cout << e.what() << std::endl;
+    edn::eprintln(e.what());
     return -1;
   }
 
   if (result.count("help")) {
-    std::cout << options.help() << std::endl;
+    edn::println(options.help());
     return 0;
   }
 

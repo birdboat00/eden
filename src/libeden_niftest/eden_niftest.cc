@@ -6,7 +6,7 @@
 
 namespace edn::niftest {
   EDN_NIF_DECL(edn_nif_niftest_helloworld_0) {
-    std::cout << "hello, world from niftest!" << std::endl;
+    edn::println("hello, world from niftest!");
     return term::from<i64>(0);
   }
 }
